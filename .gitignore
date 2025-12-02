@@ -1,0 +1,30 @@
+# Bun
+node_modules/
+*.log
+dist/
+build/
+.env
+.env.local
+.env.*.local
+
+# Bun specific
+.bun/
+bun.lockb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Build outputs
+*.tsbuildinfo
