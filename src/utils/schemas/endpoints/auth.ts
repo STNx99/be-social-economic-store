@@ -1,27 +1,35 @@
-import z from "zod";
-import { IDSchema } from "../common";
+import { z } from "zod";
+import { IDSchema, EmailSchema, PasswordSchema, NameSchema } from "../common";
 
 export const AuthLoginRequestSchema = z.object({
-  email: z.email(),
-  password: z.string().min(6),
+  email: EmailSchema,
+  password: z.string().min(1, "Password is required"),
 });
 
 export const AuthLoginResponseSchema = z.object({
-  accessToken: z.string(),
+  success: z.boolean(),
+  data: z.object({
+    accessToken: z.string(),
+    user: z.object({id: IDSchema,email: EmailSchema,name: NameSchema,}),
+  }).optional(),
+  error: z.string().optional(),
+  details: z.array(z.object({
+    field: z.string(),
+    message: z.string(),
+  })).optional(),
 });
 
 export const AuthRegisterRequestSchema = z.object({
-  name: z.string().min(2).max(100),
-  email: z.email(),
-  password: z.string().min(6),
+  name: NameSchema,
+  email: EmailSchema,
+  password: PasswordSchema,
 });
 
 export const AuthRegisterResponseSchema = z.object({
-  id: IDSchema,
-  name: z.string(),
-  email: z.email(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  success: z.boolean(),
+  data: z.object({id: IDSchema,name: z.string(),email: z.string().email(),createdAt: z.date(),updatedAt: z.date(),}).optional(),//chỗ này lỗi thì đổi email: z.email();
+  error: z.string().optional(),
+  details: z.array(z.object({field: z.string(),message: z.string(),})).optional(),
 });
 
 export type AuthLoginRequest = z.infer<typeof AuthLoginRequestSchema>;
