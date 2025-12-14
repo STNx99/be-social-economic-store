@@ -1,53 +1,22 @@
 import { UserEntity, DomainValidationError } from "@/domain/entities/User";
 import { IUserRepository } from "@/domain/repositories/IUserRepository";
 import { validateData, ValidationError } from "@/utils/validation";
-import { AuthRegisterRequestSchema, AuthLoginRequestSchema } from "@/utils/schemas/endpoints/auth";
+import { 
+  AuthRegisterRequestSchema, 
+  AuthLoginRequestSchema,
+  AuthRegisterRequest,
+  AuthRegisterResponse,
+  AuthLoginRequest,
+  AuthLoginResponse
+} from "@/utils/schemas/endpoints/auth";
 import { SanitizedUserInputSchema } from "@/utils/schemas";
 import { CreateUserInput } from "@/utils/schemas/user";
 import bcrypt from "bcryptjs";
 
-export interface RegisterRequest {
-  name: string;
-  email: string;
-  password: string;
-}
-
-export interface RegisterResponse {
-  success: boolean;
-  data?: {
-    id: string;
-    name: string;
-    email: string;
-    createdAt: Date;
-    updatedAt: Date;
-  };
-  error?: string;
-  details?: Array<{ field: string; message: string }>;
-}
-
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface LoginResponse {
-  success: boolean;
-  data?: {
-    accessToken: string;
-    user: {
-      id: string;
-      email: string;
-      name: string;
-    };
-  };
-  error?: string;
-  details?: Array<{ field: string; message: string }>;
-}
-
 export class AuthUseCase {
   constructor(private userRepository: IUserRepository) {}
 
-  async register(request: RegisterRequest): Promise<RegisterResponse> {
+  async register(request: AuthRegisterRequest): Promise<AuthRegisterResponse> {
     try {
       // 1. Validate input với schema
       let validatedInput: CreateUserInput;
@@ -137,7 +106,7 @@ export class AuthUseCase {
     }
   }
 
-  async login(request: LoginRequest): Promise<LoginResponse> {
+  async login(request: AuthLoginRequest): Promise<AuthLoginResponse> {
     try {
       // 1. Validate input
       let validatedInput;
