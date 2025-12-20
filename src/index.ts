@@ -1,14 +1,41 @@
-import { Hono } from 'hono'
-import { setupUserRoutes } from './infrastructure/routes/userRoutes'
-import { setupAuthRoutes } from './infrastructure/routes/authRoutes'
+import { Hono } from "hono";
+import { setupUserRoutes } from "./infrastructure/routes/userRoutes";
+import { setupAuthRoutes } from "./infrastructure/routes/authRoutes";
+import {
+  initializeDynamo,
+  checkDynamoHealth,
+} from "./infrastructure/dynamodb/initializer";
 
-const app = new Hono()
+const app = new Hono();
 
-app.get('/health', (c) => {
-  return c.json({ status: 'ok', timestamp: new Date().toISOString() })
-})
+const IS_DYNAMO =
+  !!process.env.DYNAMODB_TABLE_USERS || process.env.USE_DYNAMODB === "true";
 
-setupUserRoutes(app)
-setupAuthRoutes(app)
+if (IS_DYNAMO) {
+  const failOnInit = process.env.DYNAMODB_FAIL_ON_INIT === "true";
 
-export default app
+  if (failOnInit) {
+    await initializeDynamo();
+  } else {
+    initializeDynamo().catch((err) => {
+      console.error(
+        "[Dynamo] initialization error:",
+        err instanceof Error ? err.message : err,
+      );
+    });
+  }
+}
+
+app.get("/health", async (c) => {
+  const base = { status: "ok", timestamp: new Date().toISOString() };
+  if (IS_DYNAMO) {
+    const dynamo = await checkDynamoHealth();
+    return c.json({ ...base, dynamo });
+  }
+  return c.json(base);
+});
+
+setupUserRoutes(app);
+setupAuthRoutes(app);
+
+export default app;

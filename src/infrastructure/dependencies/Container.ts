@@ -1,9 +1,9 @@
 import { IUserRepository } from "../../domain/repositories/IUserRepository";
 import { UserController } from "../../adapters/controllers/UserController";
 import { AuthController } from "../../adapters/controllers/AuthController";
-import { UserRepository } from "../../adapters/repositories/UserRepository";
 import { UserUseCase } from "../../application/usecases/UserUseCase";
 import { AuthUseCase } from "../../application/usecases/AuthUseCase";
+import { UserRepository } from "@/adapters/repositories/UserRepository";
 
 export class Container {
   private static instance: Container;
@@ -15,6 +15,7 @@ export class Container {
 
   private constructor() {
     this.userRepository = new UserRepository();
+
     this.userUseCase = new UserUseCase(this.userRepository);
     this.authUseCase = new AuthUseCase(this.userRepository);
     this.userController = new UserController(this.userUseCase);
