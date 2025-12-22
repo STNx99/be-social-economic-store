@@ -4,6 +4,8 @@
     "dev": "bun run --hot src/index.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.956.0",
+    "@aws-sdk/lib-dynamodb": "^3.956.0",
     "bcryptjs": "^3.0.3",
     "hono": "^4.10.7",
     "zod": "^4.1.13"
