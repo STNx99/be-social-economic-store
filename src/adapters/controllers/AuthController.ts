@@ -1,9 +1,9 @@
 import { Context } from "hono";
-import { AuthUseCase } from "@/application/usecases/AuthUseCase";
+import { IAuthUseCase } from "@/domain/usecases/IAuthUseCase";
 import { AuthRegisterRequest, AuthLoginRequest } from "@/utils/schemas/endpoints/auth";
 
 export class AuthController {
-  constructor(private authUseCase: AuthUseCase) {}
+  constructor(private authUseCase: IAuthUseCase) {}
 
   async register(c: Context) {
     try {

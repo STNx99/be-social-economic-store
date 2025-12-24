@@ -7,7 +7,7 @@ import {
   ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { User } from "@/utils";
-import { IUserRepository } from "../../domain/repositories/IUserRepository";
+import { IUserRepository } from "@/domain/repositories/IUserRepository";
 
 export class UserRepository implements IUserRepository {
   private tableName: string;
