@@ -50,10 +50,10 @@ export const ProductInputSchema = z.object({
   description: z.string().max(2000).optional(),
   price: PositiveNumberSchema,
   stock: z.number().int().min(0),
-  images: z.array(URLSchema).default([]),
-  category: NonEmptyStringSchema.max(100).optional(),
+  images: z.array(URLSchema).optional().default([]),
+  category: z.string().max(100).optional(),
   status: z.enum(['active', 'inactive', 'out_of_stock']).optional().default('active')
-}).strict();
+});
 
 /**
  * Sanitized product input schema with data transformation
@@ -63,8 +63,8 @@ export const SanitizedProductInputSchema = ProductInputSchema.transform((data) =
   description: data.description?.trim(),
   price: data.price,
   stock: data.stock,
-  images: data.images || [],
-  category: data.category?.trim(),
+  images: Array.isArray(data.images) ? data.images : [],
+  category: data.category?.trim() || undefined,
   status: data.status || 'active'
 }));
 

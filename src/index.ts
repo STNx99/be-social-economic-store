@@ -40,4 +40,29 @@ setupUserRoutes(app);
 setupAuthRoutes(app);
 setupProductRoutes(app);
 
+// 404 handler
+app.notFound((c) => {
+  return c.json(
+    {
+      success: false,
+      error: "Requested resource not found",
+      path: c.req.path,
+      method: c.req.method,
+    },
+    404,
+  );
+});
+
+// Error handler
+app.onError((err, c) => {
+  console.error("[Server Error]:", err);
+  return c.json(
+    {
+      success: false,
+      error: err.message || "Internal server error",
+    },
+    500,
+  );
+});
+
 export default app;

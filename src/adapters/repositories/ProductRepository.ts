@@ -5,7 +5,6 @@ import {
   DeleteCommand,
   ScanCommand,
   QueryCommand,
-  BatchGetCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { Product } from "@/utils";
 import { IProductRepository } from "../../domain/repositories/IProductRepository";
@@ -16,13 +15,13 @@ export class ProductRepository implements IProductRepository {
   private statusIndex?: string;
 
   constructor() {
-    this.tableName = process.env.DYNAMODB_TABLE_PRODUCTS ?? "Products";
+    this.tableName = process.env.DYNAMODB_TABLE_PRODUCTS ?? "Product";
     this.categoryIndex = process.env.DYNAMODB_PRODUCTS_CATEGORY_INDEX;
     this.statusIndex = process.env.DYNAMODB_PRODUCTS_STATUS_INDEX;
 
     if (!process.env.DYNAMODB_TABLE_PRODUCTS) {
       console.warn(
-        '[DynamoProductRepository] DYNAMODB_TABLE_PRODUCTS not set, defaulting to "Products".',
+        '[DynamoProductRepository] DYNAMODB_TABLE_PRODUCTS not set, defaulting to "Product".',
       );
     }
   }
@@ -126,37 +125,48 @@ export class ProductRepository implements IProductRepository {
   }
 
   async save(product: Product): Promise<Product> {
-    const item = {
-      id: product.id,
-      name: product.name,
-      description: product.description,
-      price: product.price,
-      stock: product.stock,
-      images: product.images || [],
-      category: product.category,
-      status: product.status || 'active',
-      createdAt:
-        product.createdAt instanceof Date
-          ? product.createdAt.toISOString()
-          : new Date(product.createdAt).toISOString(),
-      updatedAt:
-        product.updatedAt instanceof Date
-          ? product.updatedAt.toISOString()
-          : new Date(product.updatedAt).toISOString(),
-    };
+    try {
+      const item = {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        stock: product.stock,
+        images: product.images || [],
+        category: product.category,
+        status: product.status || 'active',
+        createdAt:
+          product.createdAt instanceof Date
+            ? product.createdAt.toISOString()
+            : new Date(product.createdAt).toISOString(),
+        updatedAt:
+          product.updatedAt instanceof Date
+            ? product.updatedAt.toISOString()
+            : new Date(product.updatedAt).toISOString(),
+      };
 
-    await ddbDocClient.send(
-      new PutCommand({
-        TableName: this.tableName,
-        Item: item,
-      }),
-    );
+      await ddbDocClient.send(
+        new PutCommand({
+          TableName: this.tableName,
+          Item: item,
+        }),
+      );
 
-    return {
-      ...product,
-      createdAt: new Date(item.createdAt),
-      updatedAt: new Date(item.updatedAt),
-    };
+      return {
+        ...product,
+        createdAt: new Date(item.createdAt),
+        updatedAt: new Date(item.updatedAt),
+      };
+    } catch (error: any) {
+      // Check if it's a DynamoDB table not found error
+      if (error?.name === 'ResourceNotFoundException' || 
+          error?.code === 'ResourceNotFoundException' ||
+          error?.message?.includes('Cannot do operations on a non-existent table')) {
+        throw new Error(`DynamoDB table "${this.tableName}" does not exist. Please create the table first.`);
+      }
+      
+      throw error;
+    }
   }
 
   async delete(id: string): Promise<boolean> {
@@ -183,19 +193,20 @@ export class ProductRepository implements IProductRepository {
     const allItems: Record<string, any>[] = [];
 
     for (const batch of batches) {
-      const keys = batch.map((id) => ({ id }));
-      const cmd = new BatchGetCommand({
-        RequestItems: {
-          [this.tableName]: {
-            Keys: keys,
-          },
-        },
+      // Use GetCommand for each ID since BatchGetCommand is not available in lib-dynamodb
+      const promises = batch.map((id: string) => 
+        ddbDocClient.send(new GetCommand({
+          TableName: this.tableName,
+          Key: { id },
+        }))
+      );
+      
+      const results = await Promise.all(promises);
+      results.forEach((res: any) => {
+        if (res.Item) {
+          allItems.push(res.Item as Record<string, any>);
+        }
       });
-
-      const res: any = await ddbDocClient.send(cmd);
-      if (res.Responses && res.Responses[this.tableName]) {
-        allItems.push(...(res.Responses[this.tableName] as Record<string, any>[]));
-      }
     }
 
     return allItems.map((it) => this.itemToProduct(it));

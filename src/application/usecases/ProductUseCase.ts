@@ -79,12 +79,21 @@ export class ProductUseCase implements IProductUseCase {
         success: true,
         data: savedProduct,
       };
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof DomainValidationError) {
         return {
           success: false,
           error: "Validation failed",
           details: error.details,
+        };
+      }
+
+      // Check for DynamoDB errors
+      if (error?.message?.includes('does not exist') || 
+          error?.name === 'ResourceNotFoundException') {
+        return {
+          success: false,
+          error: error.message || "DynamoDB table does not exist. Please create the Products table first.",
         };
       }
 

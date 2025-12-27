@@ -28,10 +28,11 @@ export class ProductController {
         return c.json(response, 400);
       }
     } catch (error) {
+      console.error(error);
       return c.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: error instanceof Error ? error.message : "lỗi",
         },
         500,
       );
@@ -49,10 +50,11 @@ export class ProductController {
         return c.json(response, 404);
       }
     } catch (error) {
+      console.error(error); // lỗi sever
       return c.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: error instanceof Error ? error.message : "lỗi",
         },
         500,
       );
@@ -74,10 +76,11 @@ export class ProductController {
         return c.json(response, 400);
       }
     } catch (error) {
+      console.error(error); // lỗi sever
       return c.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: error instanceof Error ? error.message : "rồi luôn server căng cọt",
         },
         500,
       );
@@ -95,10 +98,11 @@ export class ProductController {
         return c.json(response, 404);
       }
     } catch (error) {
+      console.error(error); // lỗi sever
       return c.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: error instanceof Error ? error.message : "gg",
         },
         500,
       );
@@ -127,7 +131,7 @@ export class ProductController {
       return c.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: error instanceof Error ? error.message : "gg",
         },
         500,
       );
@@ -139,12 +143,11 @@ export class ProductController {
       const body = await c.req.json();
       const request = body as GeneratePresignedUrlRequest;
 
-      // Validate required fields
       if (!request.fileName || !request.contentType) {
         return c.json(
           {
             success: false,
-            error: "fileName and contentType are required",
+            error: "fileNmme vs contentType thiếu !!",
           },
           400,
         );
@@ -164,10 +167,11 @@ export class ProductController {
         200,
       );
     } catch (error) {
+      console.error(error); // lỗi sever
       return c.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: error instanceof Error ? error.message : "gg",
         },
         500,
       );
