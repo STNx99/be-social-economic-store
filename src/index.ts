@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { setupUserRoutes } from "./infrastructure/routes/userRoutes";
 import { setupAuthRoutes } from "./infrastructure/routes/authRoutes";
+import { setupProductRoutes } from "./infrastructure/routes/productRoutes";
 import {
   initializeDynamo,
   checkDynamoHealth,
@@ -37,5 +38,31 @@ app.get("/health", async (c) => {
 
 setupUserRoutes(app);
 setupAuthRoutes(app);
+setupProductRoutes(app);
+
+// 404 handler
+app.notFound((c) => {
+  return c.json(
+    {
+      success: false,
+      error: "Requested resource not found",
+      path: c.req.path,
+      method: c.req.method,
+    },
+    404,
+  );
+});
+
+// Error handler
+app.onError((err, c) => {
+  console.error("[Server Error]:", err);
+  return c.json(
+    {
+      success: false,
+      error: err.message || "Internal server error",
+    },
+    500,
+  );
+});
 
 export default app;
