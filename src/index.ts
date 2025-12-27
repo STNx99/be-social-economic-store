@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { setupUserRoutes } from "./infrastructure/routes/userRoutes";
 import { setupAuthRoutes } from "./infrastructure/routes/authRoutes";
+import { setupProductRoutes } from "./infrastructure/routes/productRoutes";
 import {
   initializeDynamo,
   checkDynamoHealth,
@@ -37,5 +38,6 @@ app.get("/health", async (c) => {
 
 setupUserRoutes(app);
 setupAuthRoutes(app);
+setupProductRoutes(app);
 
 export default app;

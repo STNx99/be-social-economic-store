@@ -1,0 +1,90 @@
+import { z } from 'zod';
+import { IDSchema, DateSchema, PositiveNumberSchema, NonEmptyStringSchema, URLSchema } from '@/utils/schemas/common';
+
+
+export const ProductSchema = z.object({
+  id: IDSchema,
+  name: NonEmptyStringSchema.max(200, 'Product name must be less than 200 characters'),
+  description: z.string().max(2000, 'Description must be less than 2000 characters').optional(),
+  price: PositiveNumberSchema,
+  stock: z.number().int().min(0, 'Stock cannot be negative'),
+  images: z.array(URLSchema).default([]),
+  category: NonEmptyStringSchema.max(100, 'Category must be less than 100 characters').optional(),
+  status: z.enum(['active', 'inactive', 'out_of_stock']).default('active'),
+  createdAt: DateSchema,
+  updatedAt: DateSchema
+}).refine(
+  (product) => product.updatedAt >= product.createdAt,
+  {
+    message: 'Updated date cannot be before creation date',
+    path: ['updatedAt']
+  }
+);
+
+
+export const CreateProductSchema = z.object({
+  name: NonEmptyStringSchema.max(200, 'Product name must be less than 200 characters'),
+  description: z.string().max(2000, 'Description must be less than 2000 characters').optional(),
+  price: PositiveNumberSchema,
+  stock: z.number().int().min(0, 'Stock cannot be negative'),
+  images: z.array(URLSchema).default([]),
+  category: NonEmptyStringSchema.max(100, 'Category must be less than 100 characters').optional(),
+  status: z.enum(['active', 'inactive', 'out_of_stock']).optional().default('active')
+});
+
+export const UpdateProductSchema = z.object({
+  name: NonEmptyStringSchema.max(200, 'Product name must be less than 200 characters').optional(),
+  description: z.string().max(2000, 'Description must be less than 2000 characters').optional(),
+  price: PositiveNumberSchema.optional(),
+  stock: z.number().int().min(0, 'Stock cannot be negative').optional(),
+  images: z.array(URLSchema).optional(),
+  category: NonEmptyStringSchema.max(100, 'Category must be less than 100 characters').optional(),
+  status: z.enum(['active', 'inactive', 'out_of_stock']).optional()
+}).refine(
+  (data) => Object.keys(data).length > 0,
+  'At least one field must be provided for update'
+);
+
+export const ProductInputSchema = z.object({
+  name: NonEmptyStringSchema.max(200),
+  description: z.string().max(2000).optional(),
+  price: PositiveNumberSchema,
+  stock: z.number().int().min(0),
+  images: z.array(URLSchema).default([]),
+  category: NonEmptyStringSchema.max(100).optional(),
+  status: z.enum(['active', 'inactive', 'out_of_stock']).optional().default('active')
+}).strict();
+
+/**
+ * Sanitized product input schema with data transformation
+ */
+export const SanitizedProductInputSchema = ProductInputSchema.transform((data) => ({
+  name: data.name.trim(),
+  description: data.description?.trim(),
+  price: data.price,
+  stock: data.stock,
+  images: data.images || [],
+  category: data.category?.trim(),
+  status: data.status || 'active'
+}));
+
+/**
+ * Schema for validating product ID parameters
+ */
+export const ProductIdParamSchema = z.object({
+  id: IDSchema
+});
+
+// Type exports
+export type Product = z.infer<typeof ProductSchema>;
+export type CreateProductInput = z.infer<typeof CreateProductSchema>;
+export type UpdateProductInput = z.infer<typeof UpdateProductSchema>;
+export type ProductInput = z.infer<typeof ProductInputSchema>;
+export type SanitizedProductInput = z.infer<typeof SanitizedProductInputSchema>;
+export type ProductIdParams = z.infer<typeof ProductIdParamSchema>;
+
+
+
+
+
+
