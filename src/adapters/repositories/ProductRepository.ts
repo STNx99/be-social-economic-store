@@ -1,4 +1,3 @@
-import { ddbDocClient } from "@/infrastructure/dynamodb/dynamoClient";
 import {
   GetCommand,
   PutCommand,
@@ -8,8 +7,9 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { Product } from "@/utils";
 import { IProductRepository } from "../../domain/repositories/IProductRepository";
+import { dynamoDBClient } from "@/infrastructure/database";
 import { ProductStatus } from "@/utils/schemas/endpoints/products";
-import { DynamoDBResult } from "@/infrastructure/database/dynamodb";
+import { DynamoDBResult } from "@/infrastructure/dynamodb/types";
 
 export class ProductRepository implements IProductRepository {
   private tableName: string;
@@ -49,7 +49,7 @@ export class ProductRepository implements IProductRepository {
       Key: { id },
     });
 
-    const res = (await ddbDocClient.send(cmd)) as DynamoDBResult;
+    const res: any = await dynamoDBClient.send(cmd);
     if (!res.Item) return null;
     return this.itemToProduct(res.Item);
   }
@@ -64,7 +64,7 @@ export class ProductRepository implements IProductRepository {
         ExclusiveStartKey,
       });
 
-      const res = (await ddbDocClient.send(cmd)) as DynamoDBResult;
+      const res: any = await dynamoDBClient.send(cmd);
       if (res.Items) {
         items.push(...res.Items);
       }
@@ -83,8 +83,8 @@ export class ProductRepository implements IProductRepository {
         ExpressionAttributeValues: { ":category": category },
       });
 
-      const res = (await ddbDocClient.send(cmd)) as DynamoDBResult;
-      return (res.Items || []).map((item) =>
+      const res: any = await dynamoDBClient.send(cmd);
+      return (res.Items || []).map((item: Record<string, any>) =>
         this.itemToProduct(item),
       );
     }
@@ -102,8 +102,8 @@ export class ProductRepository implements IProductRepository {
         ExpressionAttributeValues: { ":status": status },
       });
 
-      const res = (await ddbDocClient.send(cmd)) as DynamoDBResult;
-      return (res.Items || []).map((item) =>
+      const res: any = await dynamoDBClient.send(cmd);
+      return (res.Items || []).map((item: Record<string, any>) =>
         this.itemToProduct(item),
       );
     }
@@ -144,7 +144,7 @@ export class ProductRepository implements IProductRepository {
             : new Date(product.updatedAt).toISOString(),
       };
 
-      await ddbDocClient.send(
+      await dynamoDBClient.send(
         new PutCommand({
           TableName: this.tableName,
           Item: item,
@@ -174,13 +174,13 @@ export class ProductRepository implements IProductRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = (await ddbDocClient.send(
+    const res: any = await dynamoDBClient.send(
       new DeleteCommand({
         TableName: this.tableName,
         Key: { id },
         ReturnValues: "ALL_OLD",
       }),
-    )) as DynamoDBResult;
+    ) as DynamoDBResult;
 
     return !!res.Attributes;
   }
@@ -197,13 +197,12 @@ export class ProductRepository implements IProductRepository {
     const allItems: Record<string, unknown>[] = [];
 
     for (const batch of batches) {
-      const promises = batch.map((id: string) =>
-        ddbDocClient.send(
-          new GetCommand({
-            TableName: this.tableName,
-            Key: { id },
-          }),
-        ),
+      // Use GetCommand for each ID since BatchGetCommand is not available in lib-dynamodb
+      const promises = batch.map((id: string) => 
+        dynamoDBClient.send(new GetCommand({
+          TableName: this.tableName,
+          Key: { id },
+        }))
       );
 
       const results = await Promise.all(promises);
