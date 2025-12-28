@@ -8,6 +8,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { User } from "@/utils";
 import { IUserRepository } from "@/domain/repositories/IUserRepository";
+import { DynamoDBResult } from "@/infrastructure/database/dynamodb";
 
 export class UserRepository implements IUserRepository {
   private tableName: string;
@@ -24,14 +25,14 @@ export class UserRepository implements IUserRepository {
     }
   }
 
-  private itemToUser(item: Record<string, any>): User {
+  private itemToUser(item: Record<string, unknown>): User {
     return {
-      id: item.id,
-      email: item.email,
-      name: item.name,
-      password: item.password,
-      createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
-      updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date(),
+      id: item.id as string,
+      email: item.email as string,
+      name: item.name as string,
+      password: item.password as string,
+      createdAt: item.createdAt ? new Date(item.createdAt as string) : new Date(),
+      updatedAt: item.updatedAt ? new Date(item.updatedAt as string) : new Date(),
     };
   }
 
@@ -41,9 +42,9 @@ export class UserRepository implements IUserRepository {
       Key: { id },
     });
 
-    const res: any = await ddbDocClient.send(cmd);
+    const res = (await ddbDocClient.send(cmd)) as DynamoDBResult;
     if (!res.Item) return null;
-    return this.itemToUser(res.Item as Record<string, any>);
+    return this.itemToUser(res.Item);
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -56,9 +57,9 @@ export class UserRepository implements IUserRepository {
         Limit: 1,
       });
 
-      const res: any = await ddbDocClient.send(cmd);
+      const res = (await ddbDocClient.send(cmd)) as DynamoDBResult;
       const item = res.Items?.[0];
-      return item ? this.itemToUser(item as Record<string, any>) : null;
+      return item ? this.itemToUser(item) : null;
     }
 
     const cmd: ScanCommand = new ScanCommand({
@@ -68,9 +69,9 @@ export class UserRepository implements IUserRepository {
       Limit: 1,
     });
 
-    const res: any = await ddbDocClient.send(cmd);
+    const res = (await ddbDocClient.send(cmd)) as DynamoDBResult;
     const item = res.Items?.[0];
-    return item ? this.itemToUser(item as Record<string, any>) : null;
+    return item ? this.itemToUser(item) : null;
   }
 
   async save(user: User): Promise<User> {
@@ -104,20 +105,20 @@ export class UserRepository implements IUserRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res: any = await ddbDocClient.send(
+    const res = (await ddbDocClient.send(
       new DeleteCommand({
         TableName: this.tableName,
         Key: { id },
         ReturnValues: "ALL_OLD",
       }),
-    );
+    )) as DynamoDBResult;
 
     return !!res.Attributes;
   }
 
   async findAll(): Promise<User[]> {
-    const items: Record<string, any>[] = [];
-    let ExclusiveStartKey: Record<string, any> | undefined = undefined;
+    const items: Record<string, unknown>[] = [];
+    let ExclusiveStartKey: Record<string, unknown> | undefined = undefined;
 
     do {
       const cmd: ScanCommand = new ScanCommand({
@@ -125,11 +126,11 @@ export class UserRepository implements IUserRepository {
         ExclusiveStartKey,
       });
 
-      const res: any = await ddbDocClient.send(cmd);
+      const res = (await ddbDocClient.send(cmd)) as DynamoDBResult;
       if (res.Items) {
-        items.push(...(res.Items as Record<string, any>[]));
+        items.push(...res.Items);
       }
-      ExclusiveStartKey = (res as any).LastEvaluatedKey;
+      ExclusiveStartKey = res.LastEvaluatedKey;
     } while (ExclusiveStartKey);
 
     return items.map((it) => this.itemToUser(it));

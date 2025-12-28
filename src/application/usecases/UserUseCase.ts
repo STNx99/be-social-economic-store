@@ -1,6 +1,6 @@
 import { UserEntity, DomainValidationError } from "@/domain/entities/User";
 import { IUserRepository } from "@/domain/repositories/IUserRepository";
-import { validateData, ValidationError } from "@/utils/validation";
+import { validateData, ValidationError, StatusBuilder } from "@/utils";
 import {
   CreateUserRequest,
   CreateUserResponse,
@@ -27,11 +27,7 @@ export class UserUseCase implements IUserUseCase {
         validatedInput = validateData(SanitizedUserInputSchema, request);
       } catch (error) {
         if (error instanceof ValidationError) {
-          return {
-            success: false,
-            error: "Validation failed",
-            details: error.details,
-          };
+          return StatusBuilder.fail("Validation failed", error.details);
         }
         throw error;
       }
@@ -40,24 +36,16 @@ export class UserUseCase implements IUserUseCase {
         validatedInput.email,
       );
       if (existingUser) {
-        return {
-          success: false,
-          error: "User with this email already exists",
-          details: [
-            { field: "email", message: "Email address is already registered" },
-          ],
-        };
+        return StatusBuilder.fail("User with this email already exists", [
+          { field: "email", message: "Email address is already registered" },
+        ]);
       }
 
       try {
         UserEntity.validateCreation(validatedInput);
       } catch (error) {
         if (error instanceof DomainValidationError) {
-          return {
-            success: false,
-            error: "Validation failed",
-            details: error.details,
-          };
+          return StatusBuilder.fail("Validation failed", error.details);
         }
         throw error;
       }
@@ -71,24 +59,15 @@ export class UserUseCase implements IUserUseCase {
 
       const savedUser = await this.userRepository.save(user);
 
-      return {
-        success: true,
-        data: savedUser,
-      };
+      return StatusBuilder.ok(savedUser);
     } catch (error) {
       if (error instanceof DomainValidationError) {
-        return {
-          success: false,
-          error: "Validation failed",
-          details: error.details,
-        };
+        return StatusBuilder.fail("Validation failed", error.details);
       }
 
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
-      };
+      return StatusBuilder.fail(
+        error instanceof Error ? error.message : "Unknown error occurred",
+      );
     }
   }
 
@@ -99,11 +78,7 @@ export class UserUseCase implements IUserUseCase {
         validatedParams = validateData(UserIdParamSchema, { id: request.id });
       } catch (error) {
         if (error instanceof ValidationError) {
-          return {
-            success: false,
-            error: "Invalid user ID",
-            details: error.details,
-          };
+          return StatusBuilder.fail("Invalid user ID", error.details);
         }
         throw error;
       }
@@ -111,25 +86,16 @@ export class UserUseCase implements IUserUseCase {
       const user = await this.userRepository.findById(validatedParams.id);
 
       if (!user) {
-        return {
-          success: false,
-          error: "User not found",
-          details: [
-            { field: "id", message: "No user exists with the provided ID" },
-          ],
-        };
+        return StatusBuilder.fail("User not found", [
+          { field: "id", message: "No user exists with the provided ID" },
+        ]);
       }
 
-      return {
-        success: true,
-        data: user,
-      };
+      return StatusBuilder.ok(user);
     } catch (error) {
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
-      };
+      return StatusBuilder.fail(
+        error instanceof Error ? error.message : "Unknown error occurred",
+      );
     }
   }
   async findUserByEmail(email: string): Promise<boolean> {

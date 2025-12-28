@@ -8,6 +8,8 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { Product } from "@/utils";
 import { IProductRepository } from "../../domain/repositories/IProductRepository";
+import { ProductStatus } from "@/utils/schemas/endpoints/products";
+import { DynamoDBResult } from "@/infrastructure/database/dynamodb";
 
 export class ProductRepository implements IProductRepository {
   private tableName: string;
@@ -26,18 +28,18 @@ export class ProductRepository implements IProductRepository {
     }
   }
 
-  private itemToProduct(item: Record<string, any>): Product {
+  private itemToProduct(item: Record<string, unknown>): Product {
     return {
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      price: item.price,
-      stock: item.stock,
-      images: Array.isArray(item.images) ? item.images : [],
-      category: item.category,
-      status: item.status || 'active',
-      createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
-      updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date(),
+      id: item.id as string,
+      name: item.name as string,
+      description: item.description as string | undefined,
+      price: item.price as number,
+      stock: item.stock as number,
+      images: Array.isArray(item.images) ? (item.images as string[]) : [],
+      category: item.category as string,
+      status: (item.status as ProductStatus) || "active",
+      createdAt: item.createdAt ? new Date(item.createdAt as string) : new Date(),
+      updatedAt: item.updatedAt ? new Date(item.updatedAt as string) : new Date(),
     };
   }
 
@@ -47,14 +49,14 @@ export class ProductRepository implements IProductRepository {
       Key: { id },
     });
 
-    const res: any = await ddbDocClient.send(cmd);
+    const res = (await ddbDocClient.send(cmd)) as DynamoDBResult;
     if (!res.Item) return null;
-    return this.itemToProduct(res.Item as Record<string, any>);
+    return this.itemToProduct(res.Item);
   }
 
   async findAll(): Promise<Product[]> {
-    const items: Record<string, any>[] = [];
-    let ExclusiveStartKey: Record<string, any> | undefined = undefined;
+    const items: Record<string, unknown>[] = [];
+    let ExclusiveStartKey: Record<string, unknown> | undefined;
 
     do {
       const cmd: ScanCommand = new ScanCommand({
@@ -62,11 +64,11 @@ export class ProductRepository implements IProductRepository {
         ExclusiveStartKey,
       });
 
-      const res: any = await ddbDocClient.send(cmd);
+      const res = (await ddbDocClient.send(cmd)) as DynamoDBResult;
       if (res.Items) {
-        items.push(...(res.Items as Record<string, any>[]));
+        items.push(...res.Items);
       }
-      ExclusiveStartKey = (res as any).LastEvaluatedKey;
+      ExclusiveStartKey = res.LastEvaluatedKey;
     } while (ExclusiveStartKey);
 
     return items.map((it) => this.itemToProduct(it));
@@ -81,20 +83,17 @@ export class ProductRepository implements IProductRepository {
         ExpressionAttributeValues: { ":category": category },
       });
 
-      const res: any = await ddbDocClient.send(cmd);
-      return (res.Items || []).map((item: Record<string, any>) =>
+      const res = (await ddbDocClient.send(cmd)) as DynamoDBResult;
+      return (res.Items || []).map((item) =>
         this.itemToProduct(item),
       );
     }
 
-    // Fallback to scan if no index
     const allProducts = await this.findAll();
     return allProducts.filter((p) => p.category === category);
   }
 
-  async findByStatus(
-    status: "active" | "inactive" | "out_of_stock",
-  ): Promise<Product[]> {
+  async findByStatus(status: ProductStatus): Promise<Product[]> {
     if (this.statusIndex) {
       const cmd: QueryCommand = new QueryCommand({
         TableName: this.tableName,
@@ -103,8 +102,8 @@ export class ProductRepository implements IProductRepository {
         ExpressionAttributeValues: { ":status": status },
       });
 
-      const res: any = await ddbDocClient.send(cmd);
-      return (res.Items || []).map((item: Record<string, any>) =>
+      const res = (await ddbDocClient.send(cmd)) as DynamoDBResult;
+      return (res.Items || []).map((item) =>
         this.itemToProduct(item),
       );
     }
@@ -134,7 +133,7 @@ export class ProductRepository implements IProductRepository {
         stock: product.stock,
         images: product.images || [],
         category: product.category,
-        status: product.status || 'active',
+        status: product.status || "active",
         createdAt:
           product.createdAt instanceof Date
             ? product.createdAt.toISOString()
@@ -157,26 +156,31 @@ export class ProductRepository implements IProductRepository {
         createdAt: new Date(item.createdAt),
         updatedAt: new Date(item.updatedAt),
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const awsError = error as { name?: string; code?: string; message?: string };
       // Check if it's a DynamoDB table not found error
-      if (error?.name === 'ResourceNotFoundException' || 
-          error?.code === 'ResourceNotFoundException' ||
-          error?.message?.includes('Cannot do operations on a non-existent table')) {
-        throw new Error(`DynamoDB table "${this.tableName}" does not exist. Please create the table first.`);
+      if (
+        awsError?.name === "ResourceNotFoundException" ||
+        awsError?.code === "ResourceNotFoundException" ||
+        awsError?.message?.includes("Cannot do operations on a non-existent table")
+      ) {
+        throw new Error(
+          `DynamoDB table "${this.tableName}" does not exist. Please create the table first.`,
+        );
       }
-      
+
       throw error;
     }
   }
 
   async delete(id: string): Promise<boolean> {
-    const res: any = await ddbDocClient.send(
+    const res = (await ddbDocClient.send(
       new DeleteCommand({
         TableName: this.tableName,
         Key: { id },
         ReturnValues: "ALL_OLD",
       }),
-    );
+    )) as DynamoDBResult;
 
     return !!res.Attributes;
   }
@@ -190,21 +194,23 @@ export class ProductRepository implements IProductRepository {
       batches.push(ids.slice(i, i + 100));
     }
 
-    const allItems: Record<string, any>[] = [];
+    const allItems: Record<string, unknown>[] = [];
 
     for (const batch of batches) {
-      // Use GetCommand for each ID since BatchGetCommand is not available in lib-dynamodb
-      const promises = batch.map((id: string) => 
-        ddbDocClient.send(new GetCommand({
-          TableName: this.tableName,
-          Key: { id },
-        }))
+      const promises = batch.map((id: string) =>
+        ddbDocClient.send(
+          new GetCommand({
+            TableName: this.tableName,
+            Key: { id },
+          }),
+        ),
       );
-      
+
       const results = await Promise.all(promises);
-      results.forEach((res: any) => {
-        if (res.Item) {
-          allItems.push(res.Item as Record<string, any>);
+      results.forEach((res) => {
+        const typedRes = res as DynamoDBResult;
+        if (typedRes.Item) {
+          allItems.push(typedRes.Item);
         }
       });
     }
@@ -212,9 +218,3 @@ export class ProductRepository implements IProductRepository {
     return allItems.map((it) => this.itemToProduct(it));
   }
 }
-
-
-
-
-
-

@@ -1,6 +1,6 @@
 import { UserEntity, DomainValidationError } from "@/domain/entities/User";
 import { IUserRepository } from "@/domain/repositories/IUserRepository";
-import { validateData, ValidationError } from "@/utils/validation";
+import { validateData, ValidationError, StatusBuilder } from "@/utils";
 import { 
   AuthRegisterRequestSchema, 
   AuthLoginRequestSchema,
@@ -24,11 +24,7 @@ export class AuthUseCase {
         validatedInput = validateData(SanitizedUserInputSchema, request);
       } catch (error) {
         if (error instanceof ValidationError) {
-          return {
-            success: false,
-            error: "Validation failed",
-            details: error.details,
-          };
+          return StatusBuilder.fail("Validation failed", error.details);
         }
         throw error;
       }
@@ -38,16 +34,12 @@ export class AuthUseCase {
         validatedInput.email,
       );
       if (existingUser) {
-        return {
-          success: false,
-          error: "User with this email already exists",
-          details: [
-            {
-              field: "email",
-              message: "Email address is already registered",
-            },
-          ],
-        };
+        return StatusBuilder.fail("User with this email already exists", [
+          {
+            field: "email",
+            message: "Email address is already registered",
+          },
+        ]);
       }
 
       // 3. Validate domain rules
@@ -55,11 +47,7 @@ export class AuthUseCase {
         UserEntity.validateCreation(validatedInput);
       } catch (error) {
         if (error instanceof DomainValidationError) {
-          return {
-            success: false,
-            error: "Validation failed",
-            details: error.details,
-          };
+          return StatusBuilder.fail("Validation failed", error.details);
         }
         throw error;
       }
@@ -79,30 +67,21 @@ export class AuthUseCase {
       const savedUser = await this.userRepository.save(user);
 
       // 7. Return response (không trả về password)
-      return {
-        success: true,
-        data: {
-          id: savedUser.id,
-          name: savedUser.name,
-          email: savedUser.email,
-          createdAt: savedUser.createdAt,
-          updatedAt: savedUser.updatedAt,
-        },
-      };
+      return StatusBuilder.ok({
+        id: savedUser.id,
+        name: savedUser.name,
+        email: savedUser.email,
+        createdAt: savedUser.createdAt,
+        updatedAt: savedUser.updatedAt,
+      });
     } catch (error) {
       if (error instanceof DomainValidationError) {
-        return {
-          success: false,
-          error: "Validation failed",
-          details: error.details,
-        };
+        return StatusBuilder.fail("Validation failed", error.details);
       }
 
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
-      };
+      return StatusBuilder.fail(
+        error instanceof Error ? error.message : "Unknown error occurred",
+      );
     }
   }
 
@@ -114,11 +93,7 @@ export class AuthUseCase {
         validatedInput = validateData(AuthLoginRequestSchema, request);
       } catch (error) {
         if (error instanceof ValidationError) {
-          return {
-            success: false,
-            error: "Validation failed",
-            details: error.details,
-          };
+          return StatusBuilder.fail("Validation failed", error.details);
         }
         throw error;
       }
@@ -129,16 +104,12 @@ export class AuthUseCase {
       );
 
       if (!user) {
-        return {
-          success: false,
-          error: "Invalid email or password",
-          details: [
-            {
-              field: "email",
-              message: "No account found with this email address",
-            },
-          ],
-        };
+        return StatusBuilder.fail("Invalid email or password", [
+          {
+            field: "email",
+            message: "No account found with this email address",
+          },
+        ]);
       }
 
       // 3. Verify password
@@ -148,39 +119,30 @@ export class AuthUseCase {
       );
 
       if (!isPasswordValid) {
-        return {
-          success: false,
-          error: "Invalid email or password",
-          details: [
-            {
-              field: "password",
-              message: "Incorrect password",
-            },
-          ],
-        };
+        return StatusBuilder.fail("Invalid email or password", [
+          {
+            field: "password",
+            message: "Incorrect password",
+          },
+        ]);
       }
 
       // 4. Generate access token (simple token cho demo, production nên dùng JWT)
       const accessToken = this.generateAccessToken(user.id);
 
       // 5. Return response
-      return {
-        success: true,
-        data: {
-          accessToken,
-          user: {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-          },
+      return StatusBuilder.ok({
+        accessToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
         },
-      };
+      });
     } catch (error) {
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
-      };
+      return StatusBuilder.fail(
+        error instanceof Error ? error.message : "Unknown error occurred",
+      );
     }
   }
 

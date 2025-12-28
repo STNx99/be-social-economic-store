@@ -1,6 +1,8 @@
 import { Context } from "hono";
 import { IAuthUseCase } from "@/domain/usecases/IAuthUseCase";
 import { AuthRegisterRequest, AuthLoginRequest } from "@/utils/schemas/endpoints/auth";
+import { StatusBuilder } from "@/utils";
+
 
 export class AuthController {
   constructor(private authUseCase: IAuthUseCase) {}
@@ -17,10 +19,9 @@ export class AuthController {
       }
     } catch (error) {
       return c.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        },
+        StatusBuilder.fail(
+          error instanceof Error ? error.message : "Unknown error",
+        ),
         500,
       );
     }
@@ -38,10 +39,9 @@ export class AuthController {
       }
     } catch (error) {
       return c.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        },
+        StatusBuilder.fail(
+          error instanceof Error ? error.message : "Unknown error",
+        ),
         500,
       );
     }

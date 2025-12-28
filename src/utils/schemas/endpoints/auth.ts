@@ -32,7 +32,15 @@ export const AuthRegisterResponseSchema = z.object({
   details: z.array(z.object({field: z.string(),message: z.string(),})).optional(),
 });
 
+export const AccessTokenPayloadSchema = z.object({
+  sub: z.string().optional(),
+  userId: z.string().optional(),
+  iat: z.number(),
+  exp: z.number().optional(),
+});
+
 export type AuthLoginRequest = z.infer<typeof AuthLoginRequestSchema>;
 export type AuthLoginResponse = z.infer<typeof AuthLoginResponseSchema>;
 export type AuthRegisterRequest = z.infer<typeof AuthRegisterRequestSchema>;
 export type AuthRegisterResponse = z.infer<typeof AuthRegisterResponseSchema>;
+export type AccessTokenPayload = z.infer<typeof AccessTokenPayloadSchema>;

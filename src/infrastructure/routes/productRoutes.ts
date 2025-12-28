@@ -1,7 +1,11 @@
 import { Hono } from "hono";
 import { Container } from "@/infrastructure/dependencies/Container";
+import { requireAuth } from "@/infrastructure/middleware/auth";
 
 export function setupProductRoutes(app: Hono) {
+  app.use("/api/products", requireAuth());
+  app.use("/api/products/*", requireAuth());
+
   try {
     const container = Container.getInstance();
     const productController = container.getProductController();
@@ -16,7 +20,8 @@ export function setupProductRoutes(app: Hono) {
     app.delete("/api/products/:id", (c) => productController.deleteProduct(c));
   } catch (error) {
     console.error("[ProductRoutes] Failed to setup routes:", error);
-    // Vẫn đăng ký routes nhưng sẽ trả về lỗi khi gọi
+
+    // Fallback error handlers if controller initialization fails
     app.post("/api/products/upload-url", (c) =>
       c.json({ success: false, error: "S3 service not configured" }, 500),
     );
@@ -37,9 +42,3 @@ export function setupProductRoutes(app: Hono) {
     );
   }
 }
-
-
-
-
-
-

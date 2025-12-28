@@ -6,6 +6,8 @@ import {
   initializeDynamo,
   checkDynamoHealth,
 } from "./infrastructure/dynamodb/initializer";
+import { setUpWebsocketRoute } from "./infrastructure/routes/wsRoutes";
+import { websocket } from "hono/bun";
 
 const app = new Hono();
 
@@ -39,6 +41,7 @@ app.get("/health", async (c) => {
 setupUserRoutes(app);
 setupAuthRoutes(app);
 setupProductRoutes(app);
+setUpWebsocketRoute(app);
 
 // 404 handler
 app.notFound((c) => {
@@ -65,4 +68,8 @@ app.onError((err, c) => {
   );
 });
 
-export default app;
+export default {
+  fetch: app.fetch,
+  port: 8080,
+  websocket,
+};

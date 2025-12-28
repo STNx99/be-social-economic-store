@@ -1,6 +1,6 @@
 import { Context } from "hono";
-import { ProductUseCase } from "../../application/usecases/ProductUseCase";
-import { S3Service } from "../../infrastructure/s3/s3Service";
+
+
 import {
   CreateProductRequest,
   UpdateProductRequest,
@@ -8,12 +8,11 @@ import {
   ListProductsRequest,
   GeneratePresignedUrlRequest,
 } from "@/utils/schemas/endpoints/products";
+import { IProductUseCase } from "@/domain/usecases/IProductUseCase";
+import { StatusBuilder } from "@/utils";
 
 export class ProductController {
-  constructor(
-    private productUseCase: ProductUseCase,
-    private s3Service: S3Service,
-  ) {}
+  constructor(private productUseCase: IProductUseCase) {}
 
   async createProduct(c: Context) {
     try {
@@ -30,10 +29,7 @@ export class ProductController {
     } catch (error) {
       console.error(error);
       return c.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : "lỗi",
-        },
+        StatusBuilder.fail(error instanceof Error ? error.message : "lỗi"),
         500,
       );
     }
@@ -52,10 +48,7 @@ export class ProductController {
     } catch (error) {
       console.error(error); // lỗi sever
       return c.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : "lỗi",
-        },
+        StatusBuilder.fail(error instanceof Error ? error.message : "lỗi"),
         500,
       );
     }
@@ -78,10 +71,9 @@ export class ProductController {
     } catch (error) {
       console.error(error); // lỗi sever
       return c.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : "rồi luôn server căng cọt",
-        },
+        StatusBuilder.fail(
+          error instanceof Error ? error.message : "rồi luôn server căng cọt",
+        ),
         500,
       );
     }
@@ -100,10 +92,7 @@ export class ProductController {
     } catch (error) {
       console.error(error); // lỗi sever
       return c.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : "gg",
-        },
+        StatusBuilder.fail(error instanceof Error ? error.message : "gg"),
         500,
       );
     }
@@ -116,7 +105,7 @@ export class ProductController {
         page: query.page ? parseInt(query.page) : 1,
         limit: query.limit ? parseInt(query.limit) : 10,
         category: query.category,
-        status: query.status as any,
+        status: query.status as "active" | "inactive" | undefined,
         search: query.search,
       };
 
@@ -129,10 +118,7 @@ export class ProductController {
       }
     } catch (error) {
       return c.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : "gg",
-        },
+        StatusBuilder.fail(error instanceof Error ? error.message : "gg"),
         500,
       );
     }
@@ -143,44 +129,19 @@ export class ProductController {
       const body = await c.req.json();
       const request = body as GeneratePresignedUrlRequest;
 
-      if (!request.fileName || !request.contentType) {
-        return c.json(
-          {
-            success: false,
-            error: "fileNmme vs contentType thiếu !!",
-          },
-          400,
-        );
+      const response = await this.productUseCase.generatePresignedUrl(request);
+
+      if (response.success) {
+        return c.json(response, 200);
+      } else {
+        return c.json(response, 400);
       }
-
-      const result = await this.s3Service.generatePresignedUrl({
-        fileName: request.fileName,
-        contentType: request.contentType,
-        folder: "products",
-      });
-
-      return c.json(
-        {
-          success: true,
-          data: result,
-        },
-        200,
-      );
     } catch (error) {
       console.error(error); // lỗi sever
       return c.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : "gg",
-        },
+        StatusBuilder.fail(error instanceof Error ? error.message : "gg"),
         500,
       );
     }
   }
 }
-
-
-
-
-
-
