@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { ProductSchema } from "../product";
 
+const productStatusEnum = z.enum(['active', 'inactive', 'out_of_stock']);
+
 export const CreateProductRequestSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
@@ -8,7 +10,7 @@ export const CreateProductRequestSchema = z.object({
   stock: z.number().int().min(0),
   images: z.array(z.string().url()).default([]),
   category: z.string().max(100).optional(),
-  status: z.enum(['active', 'inactive', 'out_of_stock']).optional().default('active'),
+  status: productStatusEnum.optional().default('active'),
 });
 
 export const CreateProductResponseSchema = z.object({
@@ -50,7 +52,7 @@ export const UpdateProductRequestSchema = z.object({
   stock: z.number().int().min(0).optional(),
   images: z.array(z.string().url()).optional(),
   category: z.string().max(100).optional(),
-  status: z.enum(['active', 'inactive', 'out_of_stock']).optional(),
+  status: productStatusEnum.optional(),
 });
 
 export const UpdateProductResponseSchema = z.object({
@@ -88,7 +90,7 @@ export const ListProductsRequestSchema = z.object({
   page: z.number().int().positive().optional().default(1),
   limit: z.number().int().positive().max(100).optional().default(10),
   category: z.string().optional(),
-  status: z.enum(['active', 'inactive', 'out_of_stock']).optional(),
+  status: productStatusEnum.optional(),
   search: z.string().optional(),
 });
 
@@ -119,6 +121,7 @@ export const GeneratePresignedUrlResponseSchema = z.object({
   error: z.string().optional(),
 });
 
+export type ProductStatus = z.infer<typeof productStatusEnum>;
 export type CreateProductRequest = z.infer<typeof CreateProductRequestSchema>;
 export type CreateProductResponse = z.infer<typeof CreateProductResponseSchema>;
 export type GetProductRequest = z.infer<typeof GetProductRequestSchema>;

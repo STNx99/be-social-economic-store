@@ -1,5 +1,7 @@
 import { Context } from "hono";
 import { IUserUseCase } from "@/domain/usecases/IUserUseCase";
+import { StatusBuilder } from "@/utils";
+
 
 export class UserController {
   constructor(private userUseCase: IUserUseCase) {}
@@ -16,10 +18,9 @@ export class UserController {
       }
     } catch (error) {
       return c.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        },
+        StatusBuilder.fail(
+          error instanceof Error ? error.message : "Unknown error",
+        ),
         500,
       );
     }

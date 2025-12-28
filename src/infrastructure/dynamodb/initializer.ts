@@ -1,5 +1,11 @@
 import { rawClient } from "@/infrastructure/dynamodb/dynamoClient";
-import { DescribeTableCommand, CreateTableCommand } from "@aws-sdk/client-dynamodb";
+import { 
+  DescribeTableCommand, 
+  CreateTableCommand,
+  AttributeDefinition,
+  KeySchemaElement,
+  CreateTableCommandInput
+} from "@aws-sdk/client-dynamodb";
 
 export type InitializeOptions = {
   autoCreate?: boolean;
@@ -36,8 +42,8 @@ async function waitForTableActive(tableName: string, timeoutSeconds = 60): Promi
   const timeoutMs = timeoutSeconds * 1000;
   while (Date.now() - start < timeoutMs) {
     try {
-      const res: any = await rawClient.send(new DescribeTableCommand({ TableName: tableName }));
-      const status = res?.Table?.TableStatus;
+      const res = await rawClient.send(new DescribeTableCommand({ TableName: tableName }));
+      const status = res.Table?.TableStatus;
       if (status === "ACTIVE") {
         return;
       }
@@ -61,8 +67,8 @@ export async function initializeDynamo(opts?: InitializeOptions): Promise<Initia
   const emailIndexName = process.env.DYNAMODB_USERS_EMAIL_INDEX;
 
   try {
-    const describeRes: any = await rawClient.send(new DescribeTableCommand({ TableName: tableName }));
-    const status = describeRes?.Table?.TableStatus;
+    const describeRes = await rawClient.send(new DescribeTableCommand({ TableName: tableName }));
+    const status = describeRes.Table?.TableStatus;
     if (status === "ACTIVE") {
       console.info(`[DynamoInit] Table '${tableName}' exists and is ACTIVE.`);
       return { ok: true, configured: true, table: tableName, created: false };
@@ -72,15 +78,16 @@ export async function initializeDynamo(opts?: InitializeOptions): Promise<Initia
     await waitForTableActive(tableName, timeoutSeconds);
     console.info(`[DynamoInit] Table '${tableName}' is now ACTIVE.`);
     return { ok: true, configured: true, table: tableName, created: false };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const error = err as { name?: string; $metadata?: { httpStatusCode?: number } };
     // If table not found and auto-create is enabled, create it
-    const notFound = err?.name === "ResourceNotFoundException" || (err?.$metadata && err.$metadata.httpStatusCode === 400);
+    const notFound = error?.name === "ResourceNotFoundException" || (error?.$metadata && error.$metadata.httpStatusCode === 400);
     if (notFound && autoCreate) {
       console.info(`[DynamoInit] Table '${tableName}' not found. Auto-create is enabled — creating table...`);
       try {
-        const attributeDefinitions: any[] = [{ AttributeName: "id", AttributeType: "S" }];
-        const keySchema: any[] = [{ AttributeName: "id", KeyType: "HASH" }];
-        const params: any = {
+        const attributeDefinitions: AttributeDefinition[] = [{ AttributeName: "id", AttributeType: "S" }];
+        const keySchema: KeySchemaElement[] = [{ AttributeName: "id", KeyType: "HASH" }];
+        const params: CreateTableCommandInput = {
           TableName: tableName,
           AttributeDefinitions: attributeDefinitions,
           KeySchema: keySchema,
@@ -107,8 +114,8 @@ export async function initializeDynamo(opts?: InitializeOptions): Promise<Initia
         await waitForTableActive(tableName, timeoutSeconds);
         console.info(`[DynamoInit] Table '${tableName}' created and is ACTIVE.`);
         return { ok: true, configured: true, table: tableName, created: true };
-      } catch (createErr: any) {
-        const msg = String(createErr?.message ?? createErr);
+      } catch (createErr: unknown) {
+        const msg = createErr instanceof Error ? createErr.message : String(createErr);
         console.error(`[DynamoInit] Failed to create table '${tableName}': ${msg}`);
         if (failOnError) {
           throw createErr;
@@ -118,7 +125,7 @@ export async function initializeDynamo(opts?: InitializeOptions): Promise<Initia
     }
 
     // Some other error occurred
-    const message = String(err?.message ?? err);
+    const message = err instanceof Error ? err.message : String(err);
     console.error(`[DynamoInit] Error checking table '${tableName}': ${message}`);
     if (failOnError) {
       throw err;
@@ -139,19 +146,20 @@ export async function checkDynamoHealth(): Promise<HealthResult> {
 
   const tableName = process.env.DYNAMODB_TABLE_USERS ?? "Users";
   try {
-    const res: any = await rawClient.send(new DescribeTableCommand({ TableName: tableName }));
-    const status = res?.Table?.TableStatus ?? "UNKNOWN";
+    const res = await rawClient.send(new DescribeTableCommand({ TableName: tableName }));
+    const status = res.Table?.TableStatus ?? "UNKNOWN";
     return { enabled: true, ok: status === "ACTIVE", table: tableName, status };
-  } catch (err: any) {
-    const message = String(err?.message ?? err);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     return { enabled: true, ok: false, table: tableName, error: message };
   }
 }
 
 if (process.env.DYNAMODB_INIT_ON_IMPORT === "true") {
-  initializeDynamo().catch((err: any) => {
+  initializeDynamo().catch((err: unknown) => {
     const failOnError = process.env.DYNAMODB_FAIL_ON_INIT === "true";
-    console.error("[DynamoInit] automatic initialization failed:", err?.message ?? err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[DynamoInit] automatic initialization failed:", message);
     if (failOnError) {
       setTimeout(() => {
         throw err;

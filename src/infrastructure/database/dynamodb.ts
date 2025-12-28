@@ -1,6 +1,13 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 
+export interface DynamoDBResult {
+  Item?: Record<string, unknown>;
+  Items?: Record<string, unknown>[];
+  LastEvaluatedKey?: Record<string, unknown>;
+  Attributes?: Record<string, unknown>;
+}
+
 export const dynamoDBClient = new DynamoDBClient({
   region: process.env.AWS_REGION,
   credentials: {

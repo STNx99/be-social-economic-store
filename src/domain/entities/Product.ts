@@ -1,24 +1,30 @@
-import { z } from "zod";
 import {
-  ProductSchema,
   CreateProductSchema,
   CreateProductInput,
   UpdateProductSchema,
   UpdateProductInput,
   Product,
 } from "@/utils/schemas/product";
+import { ProductStatus } from "@/utils/schemas/endpoints/products";
 
+/**
+ * Domain entity representing a Product.
+ *
+ * Notes on naming:
+ * - Private internal fields are named without leading underscores (e.g. `idValue`)
+ *   to avoid collision with getters/setters that expose the `id`, `name`, etc.
+ */
 export class ProductEntity implements Product {
-  public readonly id: string;
-  public readonly name: string;
-  public readonly description?: string;
-  public readonly price: number;
-  public readonly stock: number;
-  public readonly images: string[];
-  public readonly category?: string;
-  public readonly status: 'active' | 'inactive' | 'out_of_stock';
-  public readonly createdAt: Date;
-  public readonly updatedAt: Date;
+  private idValue: string;
+  private nameValue: string;
+  private descriptionValue?: string;
+  private priceValue: number;
+  private stockValue: number;
+  private imagesValue: string[];
+  private categoryValue?: string;
+  private statusValue: ProductStatus;
+  private createdAtValue: Date;
+  private updatedAtValue: Date;
 
   constructor(
     id: string,
@@ -26,204 +32,114 @@ export class ProductEntity implements Product {
     price: number,
     stock: number,
     images: string[] = [],
-    createdAt: Date = new Date(),
-    updatedAt: Date = new Date(),
     description?: string,
     category?: string,
-    status: 'active' | 'inactive' | 'out_of_stock' = 'active',
+    status: ProductStatus = "active",
+    createdAt?: Date,
+    updatedAt?: Date,
   ) {
-    const productData = {
-      id,
-      name,
-      description,
-      price,
-      stock,
-      images,
-      category,
-      status,
-      createdAt,
-      updatedAt,
-    };
-    const result = ProductSchema.safeParse(productData);
-
-    if (!result.success) {
-      const errors = result.error.issues.map((err: z.core.$ZodIssue) => ({
-        field: err.path.join("."),
-        message: err.message,
-      }));
-      throw new DomainValidationError("Invalid Product data", errors);
-    }
-
-    this.id = result.data.id;
-    this.name = result.data.name;
-    this.description = result.data.description;
-    this.price = result.data.price;
-    this.stock = result.data.stock;
-    this.images = result.data.images;
-    this.category = result.data.category;
-    this.status = result.data.status;
-    this.createdAt = result.data.createdAt;
-    this.updatedAt = result.data.updatedAt;
+    this.idValue = id;
+    this.nameValue = name;
+    this.priceValue = price;
+    this.stockValue = stock;
+    this.imagesValue = images;
+    this.descriptionValue = description;
+    this.categoryValue = category;
+    this.statusValue = status;
+    this.createdAtValue = createdAt ?? new Date();
+    this.updatedAtValue = updatedAt ?? new Date();
   }
 
-  static fromValidatedData(data: Product): ProductEntity {
-    return new ProductEntity(
-      data.id,
-      data.name,
-      data.price,
-      data.stock,
-      data.images,
-      data.createdAt,
-      data.updatedAt,
-      data.description,
-      data.category,
-      data.status,
-    );
+  // Getters (expose read-only properties)
+  get id(): string {
+    return this.idValue;
   }
 
-  static validateCreation(input: CreateProductInput): void {
-    const result = CreateProductSchema.safeParse(input);
-
-    if (!result.success) {
-      const errors = result.error.issues.map((err: z.core.$ZodIssue) => ({
-        field: err.path.join("."),
-        message: err.message,
-      }));
-      throw new DomainValidationError(
-        "Invalid Product creation data",
-        errors,
-      );
-    }
+  get name(): string {
+    return this.nameValue;
   }
 
-  static validateUpdate(input: UpdateProductInput): void {
-    const result = UpdateProductSchema.safeParse(input);
-
-    if (!result.success) {
-      const errors = result.error.issues.map((err: z.core.$ZodIssue) => ({
-        field: err.path.join("."),
-        message: err.message,
-      }));
-      throw new DomainValidationError("Invalid Product update data", errors);
-    }
+  get description(): string | undefined {
+    return this.descriptionValue;
   }
 
-  updateName(newName: string): ProductEntity {
-    ProductEntity.validateUpdate({ name: newName });
-
-    return new ProductEntity(
-      this.id,
-      newName,
-      this.price,
-      this.stock,
-      this.images,
-      this.createdAt,
-      new Date(),
-      this.description,
-      this.category,
-      this.status,
-    );
+  get price(): number {
+    return this.priceValue;
   }
 
-  updatePrice(newPrice: number): ProductEntity {
-    ProductEntity.validateUpdate({ price: newPrice });
-
-    return new ProductEntity(
-      this.id,
-      this.name,
-      newPrice,
-      this.stock,
-      this.images,
-      this.createdAt,
-      new Date(),
-      this.description,
-      this.category,
-      this.status,
-    );
+  get stock(): number {
+    return this.stockValue;
   }
 
-  updateStock(newStock: number): ProductEntity {
-    ProductEntity.validateUpdate({ stock: newStock });
-
-    return new ProductEntity(
-      this.id,
-      this.name,
-      this.price,
-      newStock,
-      this.images,
-      this.createdAt,
-      new Date(),
-      this.description,
-      this.category,
-      this.status,
-    );
+  get images(): string[] {
+    return this.imagesValue;
   }
 
-  addImage(imageUrl: string): ProductEntity {
-    const newImages = [...this.images, imageUrl];
-    ProductEntity.validateUpdate({ images: newImages });
-
-    return new ProductEntity(
-      this.id,
-      this.name,
-      this.price,
-      this.stock,
-      newImages,
-      this.createdAt,
-      new Date(),
-      this.description,
-      this.category,
-      this.status,
-    );
+  get category(): string | undefined {
+    return this.categoryValue;
   }
 
-  removeImage(imageUrl: string): ProductEntity {
-    const newImages = this.images.filter((img) => img !== imageUrl);
-    ProductEntity.validateUpdate({ images: newImages });
-
-    return new ProductEntity(
-      this.id,
-      this.name,
-      this.price,
-      this.stock,
-      newImages,
-      this.createdAt,
-      new Date(),
-      this.description,
-      this.category,
-      this.status,
-    );
+  get status(): ProductStatus {
+    return this.statusValue;
   }
 
-  updateStatus(newStatus: 'active' | 'inactive' | 'out_of_stock'): ProductEntity {
-    ProductEntity.validateUpdate({ status: newStatus });
-
-    return new ProductEntity(
-      this.id,
-      this.name,
-      this.price,
-      this.stock,
-      this.images,
-      this.createdAt,
-      new Date(),
-      this.description,
-      this.category,
-      newStatus,
-    );
+  get createdAt(): Date {
+    return this.createdAtValue;
   }
+
+  get updatedAt(): Date {
+    return this.updatedAtValue;
+  }
+
+  set name(value: string) {
+    this.nameValue = value;
+    this.updatedAtValue = new Date();
+  }
+
+  set description(value: string | undefined) {
+    this.descriptionValue = value;
+    this.updatedAtValue = new Date();
+  }
+
+  set price(value: number) {
+    this.priceValue = value;
+    this.updatedAtValue = new Date();
+  }
+
+  set stock(value: number) {
+    this.stockValue = value;
+    this.updatedAtValue = new Date();
+  }
+
+  set images(value: string[]) {
+    this.imagesValue = value;
+    this.updatedAtValue = new Date();
+  }
+
+  set category(value: string | undefined) {
+    this.categoryValue = value;
+    this.updatedAtValue = new Date();
+  }
+
+  set status(value: ProductStatus) {
+    this.statusValue = value;
+    this.updatedAtValue = new Date();
+  }
+
 
   isInStock(): boolean {
-    return this.stock > 0 && this.status === 'active';
+    return this.stock > 0 && this.status === "active";
   }
 
   isLowStock(threshold: number = 10): boolean {
-    return this.stock <= threshold && this.stock > 0;
+    return this.stock > 0 && this.stock <= threshold;
   }
 
   canBeDeleted(): boolean {
-    return this.status === 'inactive' || this.stock === 0;
+    return this.status === "inactive" || this.stock === 0;
   }
 
+  // Convert entity to plain Product object (suitable for repositories)
   toJSON(): Product {
     return {
       id: this.id,
@@ -238,6 +154,53 @@ export class ProductEntity implements Product {
       updatedAt: this.updatedAt,
     };
   }
+
+  // Factory to recreate an entity from a validated plain Product
+  static fromValidatedData(data: Product): ProductEntity {
+    return new ProductEntity(
+      data.id,
+      data.name,
+      data.price,
+      data.stock,
+      data.images,
+      data.description,
+      data.category,
+      data.status,
+      data.createdAt,
+      data.updatedAt,
+    );
+  }
+
+  // Domain validation helpers (throw DomainValidationError when invalid)
+  static validateCreation(data: CreateProductInput): void {
+    const result = CreateProductSchema.safeParse(data);
+    if (!result.success) {
+      throw new DomainValidationError(
+        "Invalid product creation data",
+        result.error.issues.map((err) => ({
+          field: Array.isArray(err.path) && err.path.length > 0
+            ? err.path.join(".")
+            : "value",
+          message: err.message,
+        })),
+      );
+    }
+  }
+
+  static validateUpdate(data: UpdateProductInput): void {
+    const result = UpdateProductSchema.safeParse(data);
+    if (!result.success) {
+      throw new DomainValidationError(
+        "Invalid product update data",
+        result.error.issues.map((err) => ({
+          field: Array.isArray(err.path) && err.path.length > 0
+            ? err.path.join(".")
+            : "value",
+          message: err.message,
+        })),
+      );
+    }
+  }
 }
 
 export class DomainValidationError extends Error {
@@ -249,9 +212,3 @@ export class DomainValidationError extends Error {
     this.name = "DomainValidationError";
   }
 }
-
-
-
-
-
-

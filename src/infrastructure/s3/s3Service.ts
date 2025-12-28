@@ -4,12 +4,6 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 const REGION = process.env.AWS_REGION ?? "us-east-1";
 const BUCKET_NAME = process.env.S3_BUCKET_NAME;
 
-// if (!BUCKET_NAME) {
-//   console.warn(
-//     "thiếu env",
-//   );
-// }
-
 export const s3Client = new S3Client({
   region: REGION,
 });

@@ -1,8 +1,54 @@
 import { IWsUseCase } from "@/domain/usecases/IWsUseCase";
+import { WSContext, WSMessageReceive } from "hono/ws";
+import { ChatClientMessageSchema } from "@/utils/schemas/endpoints/ws";
+import { MessageFactory } from "@/application/factories/message/MessageFactory";
 
 export class WsController {
-  constructor(private wsUsecase: IWsUseCase) {}
+  constructor(private wsUseCase: IWsUseCase) {}
 
-  private handleConnection(ws: WebSocket) {
+  handleConnection(ws: WSContext, userId: string): string {
+    return this.wsUseCase.addClient(ws, userId);
+  }
+
+  handleMessage(clientId: string, event: MessageEvent<WSMessageReceive>) {
+    const userId = this.wsUseCase.getUserIdByClientId(clientId);
+    if (!userId) return;
+
+    try {
+      const data = event.data;
+      let payload: unknown;
+
+      if (typeof data === "string") {
+        payload = MessageFactory.parse(data);
+        if (payload === null) return;
+      } else {
+        payload = data;
+      }
+
+      const result = ChatClientMessageSchema.safeParse(payload);
+      if (!result.success) return;
+
+      const message = result.data;
+
+      if (message.userId !== userId) {
+        console.warn(`[WsController] Security Alert: User ID mismatch for ${clientId}`);
+        return;
+      }
+
+      if (message.type === "direct") {
+        this.wsUseCase.handleDirectMessage(userId, message);
+      }
+    } catch (error) {
+      console.error(`[WsController] Unexpected error processing message from ${clientId}:`, error);
+    }
+  }
+
+  handleDisconnection(clientId: string, event: CloseEvent) {
+    this.wsUseCase.removeClient(clientId);
+  }
+
+  handleError(clientId: string, event: Event) {
+    console.error(`[WsController] WebSocket error on client ${clientId}:`, event);
+    this.wsUseCase.removeClient(clientId);
   }
 }

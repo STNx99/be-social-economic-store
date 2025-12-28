@@ -64,11 +64,11 @@ export const isValidName = (name: string): boolean => {
 };
 
 // Number validation utilities
-export const isValidInteger = (value: any): boolean => {
+export const isValidInteger = (value: unknown): boolean => {
   return Number.isInteger(Number(value));
 };
 
-export const isValidPositiveNumber = (value: any): boolean => {
+export const isValidPositiveNumber = (value: unknown): boolean => {
   const num = Number(value);
   return !isNaN(num) && num > 0;
 };
@@ -89,7 +89,7 @@ export const isValidUUIDv4 = (uuid: string): boolean => {
 };
 
 // Date validation utilities
-export const isValidDate = (date: any): boolean => {
+export const isValidDate = (date: unknown): boolean => {
   return date instanceof Date && !isNaN(date.getTime());
 };
 
@@ -133,15 +133,15 @@ export const isValidHttpUrl = (url: string): boolean => {
 };
 
 // General validation utilities
-export const isNotEmpty = (value: any): boolean => {
+export const isNotEmpty = (value: unknown): boolean => {
   if (value === null || value === undefined) return false;
   if (typeof value === 'string') return value.trim().length > 0;
   if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === 'object') return Object.keys(value).length > 0;
+  if (typeof value === 'object') return Object.keys(value as object).length > 0;
   return true;
 };
 
-export const isEmpty = (value: any): boolean => {
+export const isEmpty = (value: unknown): boolean => {
   return !isNotEmpty(value);
 };
 
@@ -152,10 +152,10 @@ export interface ValidationResult {
 }
 
 // Validation function type
-export type ValidationFunction<T = any> = (value: T) => ValidationResult;
+export type ValidationFunction<T = unknown> = (value: T) => ValidationResult;
 
 // Common validation functions
-export const validateRequired = (value: any, fieldName: string): ValidationResult => {
+export const validateRequired = (value: unknown, fieldName: string): ValidationResult => {
   if (isEmpty(value)) {
     return { isValid: false, errors: [`${fieldName} is required`] };
   }
@@ -237,7 +237,7 @@ export const chainValidations = (...validations: ValidationResult[]): Validation
 };
 
 // Zod integration utilities
-export const createZodValidationResult = (result: any): ValidationResult => {
+export const createZodValidationResult = (result: ReturnType<z.ZodSchema<unknown>['safeParse']>): ValidationResult => {
   if (result.success) {
     return { isValid: true, errors: [] };
   }
@@ -297,7 +297,7 @@ export function validateWithZod<T>(
           success: false,
           error: 'Validation failed',
           details: errors
-        }, errorStatus as any);
+        }, errorStatus);
       }
 
       c.set('validatedBody', result.data);
@@ -307,13 +307,13 @@ export function validateWithZod<T>(
         return c.json({
           success: false,
           error: 'Invalid JSON in request body'
-        }, 400 as any);
+        }, 400);
       }
 
       return c.json({
         success: false,
         error: 'Internal server error'
-      }, 500 as any);
+      }, 500);
     }
   };
 }
@@ -338,7 +338,7 @@ export function validateUserId() {
         success: false,
         error: 'Invalid user ID',
         details: errors
-      }, 400 as any);
+      }, 400);
     }
 
     c.set('validatedParams', result.data);

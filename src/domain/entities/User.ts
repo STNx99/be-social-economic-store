@@ -8,13 +8,16 @@ import {
   User,
 } from "@/utils/schemas/user";
 
+/**
+ * Domain entity representing a User.
+ */
 export class UserEntity implements User {
-  public readonly id: string;
-  public readonly email: string;
-  public readonly name: string;
-  public readonly password: string;
-  public readonly createdAt: Date;
-  public readonly updatedAt: Date;
+  private idValue: string;
+  private emailValue: string;
+  private nameValue: string;
+  private passwordValue: string;
+  private createdAtValue: Date;
+  private updatedAtValue: Date;
 
   constructor(
     id: string,
@@ -24,23 +27,64 @@ export class UserEntity implements User {
     createdAt: Date = new Date(),
     updatedAt: Date = new Date(),
   ) {
-    const userData = { id, email, name, password, createdAt, updatedAt };
+    this.idValue = id;
+    this.emailValue = email;
+    this.nameValue = name;
+    this.passwordValue = password;
+    this.createdAtValue = createdAt;
+    this.updatedAtValue = updatedAt;
+
+    const userData = this.toJSON();
     const result = UserSchema.safeParse(userData);
 
     if (!result.success) {
-      const errors = result.error.issues.map((err: z.core.$ZodIssue) => ({
+      const errors = result.error.issues.map((err) => ({
         field: err.path.join("."),
         message: err.message,
       }));
       throw new DomainValidationError("Invalid User data", errors);
     }
+  }
 
-    this.id = result.data.id;
-    this.email = result.data.email;
-    this.name = result.data.name;
-    this.password = result.data.password;
-    this.createdAt = result.data.createdAt;
-    this.updatedAt = result.data.updatedAt;
+  // Getters
+  get id(): string {
+    return this.idValue;
+  }
+
+  get email(): string {
+    return this.emailValue;
+  }
+
+  get name(): string {
+    return this.nameValue;
+  }
+
+  get password(): string {
+    return this.passwordValue;
+  }
+
+  get createdAt(): Date {
+    return this.createdAtValue;
+  }
+
+  get updatedAt(): Date {
+    return this.updatedAtValue;
+  }
+
+  // Setters
+  set email(value: string) {
+    this.emailValue = value;
+    this.updatedAtValue = new Date();
+  }
+
+  set name(value: string) {
+    this.nameValue = value;
+    this.updatedAtValue = new Date();
+  }
+
+  set password(value: string) {
+    this.passwordValue = value;
+    this.updatedAtValue = new Date();
   }
 
   static fromValidatedData(data: User): UserEntity {
@@ -58,7 +102,7 @@ export class UserEntity implements User {
     const result = CreateUserSchema.safeParse(input);
 
     if (!result.success) {
-      const errors = result.error.issues.map((err: z.core.$ZodIssue) => ({
+      const errors = result.error.issues.map((err) => ({
         field: err.path.join("."),
         message: err.message,
       }));
@@ -73,38 +117,12 @@ export class UserEntity implements User {
     const result = UpdateUserSchema.safeParse(input);
 
     if (!result.success) {
-      const errors = result.error.issues.map((err: z.core.$ZodIssue) => ({
+      const errors = result.error.issues.map((err) => ({
         field: err.path.join("."),
         message: err.message,
       }));
       throw new DomainValidationError("Invalid User update data", errors);
     }
-  }
-
-  updateName(newName: string): UserEntity {
-    UserEntity.validateUpdate({ name: newName });
-
-    return new UserEntity(
-      this.id,
-      this.email,
-      newName,
-      this.password,
-      this.createdAt,
-      new Date(),
-    );
-  }
-
-  updateEmail(newEmail: string): UserEntity {
-    UserEntity.validateUpdate({ email: newEmail });
-
-    return new UserEntity(
-      this.id,
-      newEmail,
-      this.name,
-      this.password,
-      this.createdAt,
-      new Date(),
-    );
   }
 
   canBeDeleted(): boolean {
