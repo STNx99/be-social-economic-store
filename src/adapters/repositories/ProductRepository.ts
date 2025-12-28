@@ -9,7 +9,7 @@ import { Product } from "@/utils";
 import { IProductRepository } from "../../domain/repositories/IProductRepository";
 import { dynamoDBClient } from "@/infrastructure/database";
 import { ProductStatus } from "@/utils/schemas/endpoints/products";
-import { DynamoDBResult } from "@/infrastructure/dynamodb/types";
+import { DynamoDBResult } from "@/infrastructure/database/dynamodb";
 
 export class ProductRepository implements IProductRepository {
   private tableName: string;
