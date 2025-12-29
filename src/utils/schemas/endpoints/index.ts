@@ -35,3 +35,26 @@ export {
   type GeneratePresignedUrlRequest,
   type GeneratePresignedUrlResponse,
 } from "./products";
+
+export {
+  CreateCategoryRequestSchema,
+  CreateCategoryResponseSchema,
+  GetCategoryRequestSchema,
+  GetCategoryResponseSchema,
+  UpdateCategoryRequestSchema,
+  UpdateCategoryResponseSchema,
+  DeleteCategoryRequestSchema,
+  DeleteCategoryResponseSchema,
+  ListCategoriesRequestSchema,
+  ListCategoriesResponseSchema,
+  type CreateCategoryRequest,
+  type CreateCategoryResponse,
+  type GetCategoryRequest,
+  type GetCategoryResponse,
+  type UpdateCategoryRequest,
+  type UpdateCategoryResponse,
+  type DeleteCategoryRequest,
+  type DeleteCategoryResponse,
+  type ListCategoriesRequest,
+  type ListCategoriesResponse,
+} from "./categories";
