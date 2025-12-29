@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { setupUserRoutes } from "./infrastructure/routes/userRoutes";
 import { setupAuthRoutes } from "./infrastructure/routes/authRoutes";
 import { setupProductRoutes } from "./infrastructure/routes/productRoutes";
+import { setupCategoryRoutes } from "./infrastructure/routes/categoryRoutes";
 import { setUpWebsocketRoute } from "./infrastructure/routes/wsRoutes";
 import { websocket } from "hono/bun";
 
@@ -18,6 +19,7 @@ if (IS_DYNAMO) {
 setupUserRoutes(app);
 setupAuthRoutes(app);
 setupProductRoutes(app);
+setupCategoryRoutes(app);
 setUpWebsocketRoute(app);
 
 // 404 handler

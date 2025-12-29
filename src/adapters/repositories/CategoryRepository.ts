@@ -1,0 +1,138 @@
+import {
+  GetCommand,
+  PutCommand,
+  DeleteCommand,
+  QueryCommand,
+  ScanCommand,
+} from "@aws-sdk/lib-dynamodb";
+import { Category } from "@/utils/schemas/category";
+import { ICategoryRepository } from "@/domain/repositories/ICategoryRepository";
+import { dynamoDBClient, DynamoDBResult } from "@/infrastructure/database/dynamodb";
+
+export class CategoryRepository implements ICategoryRepository {
+  private tableName: string;
+  private slugIndex?: string;
+
+  constructor() {
+    this.tableName = process.env.DYNAMODB_TABLE_CATEGORIES ?? "Category";
+    this.slugIndex = process.env.DYNAMODB_CATEGORIES_SLUG_INDEX;
+
+    if (!process.env.DYNAMODB_TABLE_CATEGORIES) {
+      console.warn(
+        '[DynamoCategoryRepository] DYNAMODB_TABLE_CATEGORIES not set, defaulting to "Category".',
+      );
+    }
+  }
+
+  private itemToCategory(item: Record<string, unknown>): Category {
+    return {
+      id: item.id as string,
+      name: item.name as string,
+      description: item.description as string | undefined,
+      slug: item.slug as string,
+      createdAt: item.createdAt ? new Date(item.createdAt as string) : new Date(),
+      updatedAt: item.updatedAt ? new Date(item.updatedAt as string) : new Date(),
+    };
+  }
+
+  async findById(id: string): Promise<Category | null> {
+    const cmd: GetCommand = new GetCommand({
+      TableName: this.tableName,
+      Key: { id },
+    });
+
+    const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+    if (!res.Item) return null;
+    return this.itemToCategory(res.Item);
+  }
+
+  async findBySlug(slug: string): Promise<Category | null> {
+    if (this.slugIndex) {
+      const cmd: QueryCommand = new QueryCommand({
+        TableName: this.tableName,
+        IndexName: this.slugIndex,
+        KeyConditionExpression: "slug = :slug",
+        ExpressionAttributeValues: { ":slug": slug },
+        Limit: 1,
+      });
+
+      const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+      const item = res.Items?.[0];
+      return item ? this.itemToCategory(item) : null;
+    }
+
+    const cmd: ScanCommand = new ScanCommand({
+      TableName: this.tableName,
+      FilterExpression: "slug = :slug",
+      ExpressionAttributeValues: { ":slug": slug },
+      Limit: 1,
+    });
+
+    const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+    const item = res.Items?.[0];
+    return item ? this.itemToCategory(item) : null;
+  }
+
+  async findAll(): Promise<Category[]> {
+    const items: Record<string, unknown>[] = [];
+    let ExclusiveStartKey: Record<string, unknown> | undefined = undefined;
+
+    do {
+      const cmd: ScanCommand = new ScanCommand({
+        TableName: this.tableName,
+        ExclusiveStartKey,
+      });
+
+      const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+      if (res.Items) {
+        items.push(...res.Items);
+      }
+      ExclusiveStartKey = res.LastEvaluatedKey;
+    } while (ExclusiveStartKey);
+
+    return items.map((it) => this.itemToCategory(it));
+  }
+
+  async save(category: Category): Promise<Category> {
+    const item = {
+      id: category.id,
+      name: category.name,
+      description: category.description,
+      slug: category.slug,
+      createdAt:
+        category.createdAt instanceof Date
+          ? category.createdAt.toISOString()
+          : new Date(category.createdAt).toISOString(),
+      updatedAt:
+        category.updatedAt instanceof Date
+          ? category.updatedAt.toISOString()
+          : new Date(category.updatedAt).toISOString(),
+    };
+
+    await dynamoDBClient.send(
+      new PutCommand({
+        TableName: this.tableName,
+        Item: item,
+      }),
+    );
+
+    return {
+      ...category,
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+    };
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const res = (await dynamoDBClient.send(
+      new DeleteCommand({
+        TableName: this.tableName,
+        Key: { id },
+        ReturnValues: "ALL_OLD",
+      }),
+    )) as DynamoDBResult;
+
+    return !!res.Attributes;
+  }
+}
+
