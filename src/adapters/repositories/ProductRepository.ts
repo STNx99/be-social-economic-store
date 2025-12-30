@@ -49,7 +49,7 @@ export class ProductRepository implements IProductRepository {
       Key: { id },
     });
 
-    const res: any = await dynamoDBClient.send(cmd);
+    const res = await dynamoDBClient.send(cmd) as DynamoDBResult;
     if (!res.Item) return null;
     return this.itemToProduct(res.Item);
   }
@@ -64,9 +64,9 @@ export class ProductRepository implements IProductRepository {
         ExclusiveStartKey,
       });
 
-      const res: any = await dynamoDBClient.send(cmd);
+      const res = await dynamoDBClient.send(cmd) as DynamoDBResult;
       if (res.Items) {
-        items.push(...res.Items);
+        items.push(...(res.Items as Record<string, unknown>[]));
       }
       ExclusiveStartKey = res.LastEvaluatedKey;
     } while (ExclusiveStartKey);
@@ -83,10 +83,8 @@ export class ProductRepository implements IProductRepository {
         ExpressionAttributeValues: { ":category": category },
       });
 
-      const res: any = await dynamoDBClient.send(cmd);
-      return (res.Items || []).map((item: Record<string, any>) =>
-        this.itemToProduct(item),
-      );
+      const res = await dynamoDBClient.send(cmd) as DynamoDBResult;
+      return this.mapItems(res.Items as Record<string, unknown>[]);
     }
 
     const allProducts = await this.findAll();
@@ -102,10 +100,8 @@ export class ProductRepository implements IProductRepository {
         ExpressionAttributeValues: { ":status": status },
       });
 
-      const res: any = await dynamoDBClient.send(cmd);
-      return (res.Items || []).map((item: Record<string, any>) =>
-        this.itemToProduct(item),
-      );
+      const res = await dynamoDBClient.send(cmd) as DynamoDBResult;
+      return this.mapItems(res.Items as Record<string, unknown>[]);
     }
 
     // Fallback to scan if no index
@@ -157,8 +153,11 @@ export class ProductRepository implements IProductRepository {
         updatedAt: new Date(item.updatedAt),
       };
     } catch (error: unknown) {
-      const awsError = error as { name?: string; code?: string; message?: string };
-      // Check if it's a DynamoDB table not found error
+      const awsError = error as {
+        name?: string;
+        code?: string;
+        message?: string;
+      };
       if (
         awsError?.name === "ResourceNotFoundException" ||
         awsError?.code === "ResourceNotFoundException" ||
@@ -197,12 +196,13 @@ export class ProductRepository implements IProductRepository {
     const allItems: Record<string, unknown>[] = [];
 
     for (const batch of batches) {
-      // Use GetCommand for each ID since BatchGetCommand is not available in lib-dynamodb
-      const promises = batch.map((id: string) => 
-        dynamoDBClient.send(new GetCommand({
-          TableName: this.tableName,
-          Key: { id },
-        }))
+      const promises = batch.map((id: string) =>
+        dynamoDBClient.send(
+          new GetCommand({
+            TableName: this.tableName,
+            Key: { id },
+          }),
+        ),
       );
 
       const results = await Promise.all(promises);

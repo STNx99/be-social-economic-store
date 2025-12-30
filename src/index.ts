@@ -3,6 +3,10 @@ import { setupUserRoutes } from "./infrastructure/routes/userRoutes";
 import { setupAuthRoutes } from "./infrastructure/routes/authRoutes";
 import { setupProductRoutes } from "./infrastructure/routes/productRoutes";
 import { setupCategoryRoutes } from "./infrastructure/routes/categoryRoutes";
+import { setupOrderRoutes } from "./infrastructure/routes/orderRoutes";
+import { setupPaymentRoutes } from "./infrastructure/routes/paymentRoutes";
+import { setupShipmentRoutes } from "./infrastructure/routes/shipmentRoutes";
+import { setupReportRoutes } from "./infrastructure/routes/reportRoutes";
 import { setUpWebsocketRoute } from "./infrastructure/routes/wsRoutes";
 import { websocket } from "hono/bun";
 
@@ -20,6 +24,10 @@ setupUserRoutes(app);
 setupAuthRoutes(app);
 setupProductRoutes(app);
 setupCategoryRoutes(app);
+setupOrderRoutes(app);
+setupPaymentRoutes(app);
+setupShipmentRoutes(app);
+setupReportRoutes(app);
 setUpWebsocketRoute(app);
 
 // 404 handler

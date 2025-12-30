@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ProductSchema } from "../product";
 
-const productStatusEnum = z.enum(['active', 'inactive', 'out_of_stock']);
+const productStatusEnum = z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected']);
 
 export const CreateProductRequestSchema = z.object({
   name: z.string().min(1).max(200),
@@ -134,9 +134,3 @@ export type ListProductsRequest = z.infer<typeof ListProductsRequestSchema>;
 export type ListProductsResponse = z.infer<typeof ListProductsResponseSchema>;
 export type GeneratePresignedUrlRequest = z.infer<typeof GeneratePresignedUrlRequestSchema>;
 export type GeneratePresignedUrlResponse = z.infer<typeof GeneratePresignedUrlResponseSchema>;
-
-
-
-
-
-

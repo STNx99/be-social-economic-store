@@ -5,44 +5,71 @@ import { IWsUseCase } from "../../domain/usecases/IWsUseCase";
 import { IWsRepository } from "../../domain/repositories/IWsRepository";
 import { IProductRepository } from "../../domain/repositories/IProductRepository";
 import { ICategoryRepository } from "../../domain/repositories/ICategoryRepository";
+import { IOrderRepository } from "../../domain/repositories/IOrderRepository";
+import { IPaymentRepository } from "../../domain/repositories/IPaymentRepository";
+import { IShipmentRepository } from "../../domain/repositories/IShipmentRepository";
 import { UserController } from "../../adapters/controllers/UserController";
 import { AuthController } from "../../adapters/controllers/AuthController";
 import { ProductController } from "../../adapters/controllers/ProductController";
 import { CategoryController } from "../../adapters/controllers/CategoryController";
+import { OrderController } from "../../adapters/controllers/OrderController";
+import { PaymentController } from "../../adapters/controllers/PaymentController";
+import { ShipmentController } from "../../adapters/controllers/ShipmentController";
 import { UserRepository } from "@/adapters/repositories/UserRepository";
 import { ProductRepository } from "@/adapters/repositories/ProductRepository";
 import { CategoryRepository } from "@/adapters/repositories/CategoryRepository";
+import { OrderRepository } from "@/adapters/repositories/OrderRepository";
+import { MockPaymentRepository } from "@/adapters/repositories/MockPaymentRepository";
+import { MockShipmentRepository } from "@/adapters/repositories/MockShipmentRepository";
 import { WsRepository } from "@/adapters/repositories/WsRepository";
 import { UserUseCase } from "@/application/usecases/UserUseCase";
 import { AuthUseCase } from "@/application/usecases/AuthUseCase";
 import { WsUseCase } from "@/application/usecases/WsUseCase";
 import { ProductUseCase } from "@/application/usecases/ProductUseCase";
 import { CategoryUseCase } from "@/application/usecases/CategoryUseCase";
+import { OrderUseCase } from "@/application/usecases/OrderUseCase";
+import { PaymentUseCase } from "@/application/usecases/PaymentUseCase";
+import { ShipmentUseCase } from "@/application/usecases/ShipmentUseCase";
 import { S3Service } from "@/infrastructure/s3/s3Service";
 import { IProductUseCase } from "@/domain/usecases/IProductUseCase";
 import { ICategoryUseCase } from "@/domain/usecases/ICategoryUseCase";
+import { IOrderUseCase } from "@/domain/usecases/IOrderUseCase";
+import { IPaymentUseCase } from "@/domain/usecases/IPaymentUseCase";
+import { IShipmentUseCase } from "@/domain/usecases/IShipmentUseCase";
 
 export class Container {
   private static instance: Container;
   private userRepository: IUserRepository;
   private productRepository: IProductRepository;
   private categoryRepository: ICategoryRepository;
+  private orderRepository: IOrderRepository;
+  private paymentRepository: IPaymentRepository;
+  private shipmentRepository: IShipmentRepository;
   private wsRepository: IWsRepository;
   private userUseCase: IUserUseCase;
   private authUseCase: IAuthUseCase;
   private wsUseCase: IWsUseCase;
   private productUseCase: IProductUseCase;
   private categoryUseCase: ICategoryUseCase;
+  private orderUseCase: IOrderUseCase;
+  private paymentUseCase: IPaymentUseCase;
+  private shipmentUseCase: IShipmentUseCase;
   private userController: UserController;
   private authController: AuthController;
   private productController: ProductController;
   private categoryController: CategoryController;
+  private orderController: OrderController;
+  private paymentController: PaymentController;
+  private shipmentController: ShipmentController;
   private s3Service: S3Service;
 
   private constructor() {
     this.userRepository = new UserRepository();
     this.productRepository = new ProductRepository();
     this.categoryRepository = new CategoryRepository();
+    this.orderRepository = new OrderRepository();
+    this.paymentRepository = new MockPaymentRepository();
+    this.shipmentRepository = new MockShipmentRepository();
     this.wsRepository = new WsRepository();
     this.s3Service = new S3Service();
 
@@ -56,11 +83,17 @@ export class Container {
     this.categoryUseCase = new CategoryUseCase(
       this.categoryRepository,
     );
+    this.orderUseCase = new OrderUseCase(this.orderRepository);
+    this.paymentUseCase = new PaymentUseCase(this.paymentRepository, this.orderRepository);
+    this.shipmentUseCase = new ShipmentUseCase(this.shipmentRepository, this.orderRepository);
 
     this.userController = new UserController(this.userUseCase);
     this.authController = new AuthController(this.authUseCase);
     this.productController = new ProductController(this.productUseCase);
     this.categoryController = new CategoryController(this.categoryUseCase);
+    this.orderController = new OrderController(this.orderUseCase);
+    this.paymentController = new PaymentController(this.paymentUseCase);
+    this.shipmentController = new ShipmentController(this.shipmentUseCase);
   }
 
   static getInstance(): Container {
@@ -100,5 +133,17 @@ export class Container {
 
   getCategoryController(): CategoryController {
     return this.categoryController;
+  }
+
+  getOrderController(): OrderController {
+    return this.orderController;
+  }
+
+  getPaymentController(): PaymentController {
+    return this.paymentController;
+  }
+
+  getShipmentController(): ShipmentController {
+    return this.shipmentController;
   }
 }

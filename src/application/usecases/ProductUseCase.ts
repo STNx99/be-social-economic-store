@@ -66,7 +66,9 @@ export class ProductUseCase implements IProductUseCase {
         validatedInput.images || [],
         validatedInput.description,
         validatedInput.category,
-        validatedInput.status || "active",
+        validatedInput.status || "pending",
+        new Date(),
+        new Date(),
       );
 
       const savedProduct = await this.productRepository.save(product.toJSON());
@@ -78,7 +80,6 @@ export class ProductUseCase implements IProductUseCase {
       }
 
       const err = error as { message?: string; name?: string };
-      // Check for DynamoDB errors
       if (
         err?.message?.includes("does not exist") ||
         err?.name === "ResourceNotFoundException"

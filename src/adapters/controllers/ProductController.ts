@@ -1,6 +1,4 @@
 import { Context } from "hono";
-
-
 import {
   CreateProductRequest,
   UpdateProductRequest,
@@ -16,20 +14,18 @@ export class ProductController {
 
   async createProduct(c: Context) {
     try {
-      const body = await c.req.json();
-      const response = await this.productUseCase.createProduct(
-        body as CreateProductRequest,
-      );
+      const body = await c.req.json() as CreateProductRequest;
+      const response = await this.productUseCase.createProduct(body);
 
       if (response.success) {
         return c.json(response, 201);
       } else {
         return c.json(response, 400);
       }
-    } catch (error) {
-      console.error(error);
+    } catch (error: unknown) {
+      const err = error as Error;
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "lỗi"),
+        StatusBuilder.fail(err.message || "Internal Server Error"),
         500,
       );
     }
@@ -45,10 +41,10 @@ export class ProductController {
       } else {
         return c.json(response, 404);
       }
-    } catch (error) {
-      console.error(error); // lỗi sever
+    } catch (error: unknown) {
+      const err = error as Error;
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "lỗi"),
+        StatusBuilder.fail(err.message || "Internal Server Error"),
         500,
       );
     }
@@ -57,23 +53,18 @@ export class ProductController {
   async updateProduct(c: Context) {
     try {
       const id = c.req.param("id");
-      const body = await c.req.json();
-      const response = await this.productUseCase.updateProduct(
-        id,
-        body as UpdateProductRequest,
-      );
+      const body = await c.req.json() as UpdateProductRequest;
+      const response = await this.productUseCase.updateProduct(id, body);
 
       if (response.success) {
         return c.json(response, 200);
       } else {
         return c.json(response, 400);
       }
-    } catch (error) {
-      console.error(error); // lỗi sever
+    } catch (error: unknown) {
+      const err = error as Error;
       return c.json(
-        StatusBuilder.fail(
-          error instanceof Error ? error.message : "rồi luôn server căng cọt",
-        ),
+        StatusBuilder.fail(err.message || "Internal Server Error"),
         500,
       );
     }
@@ -89,10 +80,10 @@ export class ProductController {
       } else {
         return c.json(response, 404);
       }
-    } catch (error) {
-      console.error(error); // lỗi sever
+    } catch (error: unknown) {
+      const err = error as Error;
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "gg"),
+        StatusBuilder.fail(err.message || "Internal Server Error"),
         500,
       );
     }
@@ -116,9 +107,10 @@ export class ProductController {
       } else {
         return c.json(response, 400);
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = error as Error;
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "gg"),
+        StatusBuilder.fail(err.message || "Internal Server Error"),
         500,
       );
     }
@@ -126,20 +118,18 @@ export class ProductController {
 
   async generatePresignedUrl(c: Context) {
     try {
-      const body = await c.req.json();
-      const request = body as GeneratePresignedUrlRequest;
-
-      const response = await this.productUseCase.generatePresignedUrl(request);
+      const body = await c.req.json() as GeneratePresignedUrlRequest;
+      const response = await this.productUseCase.generatePresignedUrl(body);
 
       if (response.success) {
         return c.json(response, 200);
       } else {
         return c.json(response, 400);
       }
-    } catch (error) {
-      console.error(error); // lỗi sever
+    } catch (error: unknown) {
+      const err = error as Error;
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "gg"),
+        StatusBuilder.fail(err.message || "Internal Server Error"),
         500,
       );
     }
