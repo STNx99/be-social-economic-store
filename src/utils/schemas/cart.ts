@@ -41,7 +41,8 @@ export const CartIdParamSchema = z.object({
   id: IDSchema
 });
 
-export const UserIdParamSchema = z.object({
+// Use cart-specific naming to avoid clashing with global `UserIdParamSchema` from `user.ts`
+export const CartUserIdParamSchema = z.object({
   userId: IDSchema
 });
 
@@ -51,5 +52,5 @@ export type AddToCartRequest = z.infer<typeof AddToCartRequestSchema>;
 export type UpdateCartItemRequest = z.infer<typeof UpdateCartItemSchema>;
 export type RemoveFromCartRequest = z.infer<typeof RemoveFromCartRequestSchema>;
 export type CartIdParams = z.infer<typeof CartIdParamSchema>;
-export type UserIdParams = z.infer<typeof UserIdParamSchema>;
+export type CartUserIdParams = z.infer<typeof CartUserIdParamSchema>;
 

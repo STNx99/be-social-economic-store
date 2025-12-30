@@ -217,12 +217,30 @@ export class CartUseCase implements ICartUseCase {
         ]);
       }
 
+      if (product.status !== "active") {
+        return StatusBuilder.fail("Product is not available", [
+          {
+            field: "productId",
+            message: "Product is inactive or unavailable",
+          },
+        ]);
+      }
+
       const quantityDifference = validatedRequest.quantity - cartItem.quantity;
       if (quantityDifference > 0 && product.stock < quantityDifference) {
         return StatusBuilder.fail("Insufficient stock", [
           {
             field: "quantity",
             message: `Not enough stock. Available: ${product.stock}`,
+          },
+        ]);
+      }
+
+      if (validatedRequest.quantity <= 0) {
+        return StatusBuilder.fail("Invalid quantity", [
+          {
+            field: "quantity",
+            message: "Quantity must be greater than 0",
           },
         ]);
       }
@@ -234,7 +252,7 @@ export class CartUseCase implements ICartUseCase {
       if (quantityDifference !== 0) {
         await this.cartRepository.updateProductStock(
           validatedRequest.productId,
-          -quantityDifference, 
+          quantityDifference, 
         );
       }
 
