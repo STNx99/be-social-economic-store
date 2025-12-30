@@ -7,7 +7,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { Product } from "@/utils";
 import { IProductRepository } from "../../domain/repositories/IProductRepository";
-import { dynamoDBClient } from "@/infrastructure/database";
+import { dynamoDBDocumentClient } from "@/infrastructure/database";
 import { ProductStatus } from "@/utils/schemas/endpoints/products";
 import { DynamoDBResult } from "@/infrastructure/database/dynamodb";
 
@@ -17,13 +17,13 @@ export class ProductRepository implements IProductRepository {
   private statusIndex?: string;
 
   constructor() {
-    this.tableName = process.env.DYNAMODB_TABLE_PRODUCTS ?? "Product";
+    this.tableName = process.env.DYNAMODB_TABLE_PRODUCTS ?? process.env.DYNAMODB_TABLE_PRODUCT ?? "Product";
     this.categoryIndex = process.env.DYNAMODB_PRODUCTS_CATEGORY_INDEX;
     this.statusIndex = process.env.DYNAMODB_PRODUCTS_STATUS_INDEX;
 
-    if (!process.env.DYNAMODB_TABLE_PRODUCTS) {
+    if (!process.env.DYNAMODB_TABLE_PRODUCTS && !process.env.DYNAMODB_TABLE_PRODUCT) {
       console.warn(
-        '[DynamoProductRepository] DYNAMODB_TABLE_PRODUCTS not set, defaulting to "Product".',
+        `[DynamoProductRepository] DYNAMODB_TABLE_PRODUCTS not set, defaulting to "${this.tableName}".`,
       );
     }
   }
@@ -58,7 +58,7 @@ export class ProductRepository implements IProductRepository {
       Key: { id },
     });
 
-    const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+    const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
     if (!res.Item) return null;
     return this.itemToProduct(res.Item);
   }
@@ -73,7 +73,7 @@ export class ProductRepository implements IProductRepository {
         ExclusiveStartKey,
       });
 
-      const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
       if (res.Items) {
         items.push(...(res.Items as Record<string, unknown>[]));
       }
@@ -92,7 +92,7 @@ export class ProductRepository implements IProductRepository {
         ExpressionAttributeValues: { ":category": category },
       });
 
-      const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
       return this.mapItems(res.Items as Record<string, unknown>[]);
     }
 
@@ -109,7 +109,7 @@ export class ProductRepository implements IProductRepository {
         ExpressionAttributeValues: { ":status": status },
       });
 
-      const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
       return this.mapItems(res.Items as Record<string, unknown>[]);
     }
 
@@ -149,7 +149,7 @@ export class ProductRepository implements IProductRepository {
             : new Date(product.updatedAt).toISOString(),
       };
 
-      await dynamoDBClient.send(
+      await dynamoDBDocumentClient.send(
         new PutCommand({
           TableName: this.tableName,
           Item: item,
@@ -184,7 +184,7 @@ export class ProductRepository implements IProductRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = (await dynamoDBClient.send(
+    const res = (await dynamoDBDocumentClient.send(
       new DeleteCommand({
         TableName: this.tableName,
         Key: { id },
@@ -207,7 +207,7 @@ export class ProductRepository implements IProductRepository {
 
     for (const batch of batches) {
       const promises = batch.map((id: string) =>
-        dynamoDBClient.send(
+        dynamoDBDocumentClient.send(
           new GetCommand({
             TableName: this.tableName,
             Key: { id },

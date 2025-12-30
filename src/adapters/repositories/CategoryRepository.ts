@@ -7,19 +7,19 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { Category } from "@/utils/schemas/category";
 import { ICategoryRepository } from "@/domain/repositories/ICategoryRepository";
-import { dynamoDBClient, DynamoDBResult } from "@/infrastructure/database/dynamodb";
+import { dynamoDBDocumentClient, DynamoDBResult } from "@/infrastructure/database/dynamodb";
 
 export class CategoryRepository implements ICategoryRepository {
   private tableName: string;
   private slugIndex?: string;
 
   constructor() {
-    this.tableName = process.env.DYNAMODB_TABLE_CATEGORIES ?? "Category";
+    this.tableName = process.env.DYNAMODB_TABLE_CATEGORIES ?? process.env.DYNAMODB_TABLE_CATEGORY ?? "Category";
     this.slugIndex = process.env.DYNAMODB_CATEGORIES_SLUG_INDEX;
 
-    if (!process.env.DYNAMODB_TABLE_CATEGORIES) {
+    if (!process.env.DYNAMODB_TABLE_CATEGORIES && !process.env.DYNAMODB_TABLE_CATEGORY) {
       console.warn(
-        '[DynamoCategoryRepository] DYNAMODB_TABLE_CATEGORIES not set, defaulting to "Category".',
+        `[DynamoCategoryRepository] DYNAMODB_TABLE_CATEGORIES not set, defaulting to "${this.tableName}".`,
       );
     }
   }
@@ -41,7 +41,7 @@ export class CategoryRepository implements ICategoryRepository {
       Key: { id },
     });
 
-    const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+    const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
     if (!res.Item) return null;
     return this.itemToCategory(res.Item);
   }
@@ -56,7 +56,7 @@ export class CategoryRepository implements ICategoryRepository {
         Limit: 1,
       });
 
-      const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
       const item = res.Items?.[0];
       return item ? this.itemToCategory(item) : null;
     }
@@ -65,10 +65,9 @@ export class CategoryRepository implements ICategoryRepository {
       TableName: this.tableName,
       FilterExpression: "slug = :slug",
       ExpressionAttributeValues: { ":slug": slug },
-      Limit: 1,
     });
 
-    const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+    const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
     const item = res.Items?.[0];
     return item ? this.itemToCategory(item) : null;
   }
@@ -83,7 +82,7 @@ export class CategoryRepository implements ICategoryRepository {
         ExclusiveStartKey,
       });
 
-      const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
       if (res.Items) {
         items.push(...res.Items);
       }
@@ -109,7 +108,7 @@ export class CategoryRepository implements ICategoryRepository {
           : new Date(category.updatedAt).toISOString(),
     };
 
-    await dynamoDBClient.send(
+    await dynamoDBDocumentClient.send(
       new PutCommand({
         TableName: this.tableName,
         Item: item,
@@ -124,7 +123,7 @@ export class CategoryRepository implements ICategoryRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = (await dynamoDBClient.send(
+    const res = (await dynamoDBDocumentClient.send(
       new DeleteCommand({
         TableName: this.tableName,
         Key: { id },

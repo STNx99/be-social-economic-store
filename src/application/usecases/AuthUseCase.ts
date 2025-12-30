@@ -101,9 +101,8 @@ export class AuthUseCase {
         throw error;
       }
 
-      // 2. Tìm user theo email
       const user = await this.userRepository.findByEmail(
-        validatedInput.email.toLowerCase().trim(),
+        validatedInput.email,
       );
 
       if (!user) {
@@ -130,10 +129,8 @@ export class AuthUseCase {
         ]);
       }
 
-      // 4. Generate access token
       const accessToken = generateAccessToken(user.id, user.role);
 
-      // 5. Return response
       return StatusBuilder.ok({
         accessToken,
         user: {

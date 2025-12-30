@@ -7,19 +7,19 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { User, UserRole } from "@/utils";
 import { IUserRepository } from "@/domain/repositories/IUserRepository";
-import { dynamoDBClient, DynamoDBResult } from "@/infrastructure/database/dynamodb";
+import { dynamoDBDocumentClient, DynamoDBResult } from "@/infrastructure/database/dynamodb";
 
 export class UserRepository implements IUserRepository {
   private tableName: string;
   private emailIndex?: string;
 
   constructor() {
-    this.tableName = process.env.DYNAMODB_TABLE_USER ?? "User";
+    this.tableName = process.env.DYNAMODB_TABLE_USERS ?? process.env.DYNAMODB_TABLE_USER ?? "User";
     this.emailIndex = process.env.DYNAMODB_USERS_EMAIL_INDEX;
 
-    if (!process.env.DYNAMODB_TABLE_USERS) {
+    if (!process.env.DYNAMODB_TABLE_USERS && !process.env.DYNAMODB_TABLE_USER) {
       console.warn(
-        '[DynamoUserRepository] DYNAMODB_TABLE_USERS not set, defaulting to "User".',
+        `[DynamoUserRepository] DYNAMODB_TABLE_USERS not set, defaulting to "${this.tableName}".`,
       );
     }
   }
@@ -42,7 +42,7 @@ export class UserRepository implements IUserRepository {
       Key: { id },
     });
 
-    const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+    const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
     if (!res.Item) return null;
     return this.itemToUser(res.Item);
   }
@@ -57,7 +57,7 @@ export class UserRepository implements IUserRepository {
         Limit: 1,
       });
 
-      const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
       const item = res.Items?.[0];
       return item ? this.itemToUser(item) : null;
     }
@@ -66,10 +66,9 @@ export class UserRepository implements IUserRepository {
       TableName: this.tableName,
       FilterExpression: "email = :email",
       ExpressionAttributeValues: { ":email": email },
-      Limit: 1,
     });
 
-    const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+    const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
     const item = res.Items?.[0];
     return item ? this.itemToUser(item) : null;
   }
@@ -91,7 +90,7 @@ export class UserRepository implements IUserRepository {
           : new Date(user.updatedAt).toISOString(),
     };
 
-    await dynamoDBClient.send(
+    await dynamoDBDocumentClient.send(
       new PutCommand({
         TableName: this.tableName,
         Item: item,
@@ -106,7 +105,7 @@ export class UserRepository implements IUserRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = (await dynamoDBClient.send(
+    const res = (await dynamoDBDocumentClient.send(
       new DeleteCommand({
         TableName: this.tableName,
         Key: { id },
@@ -127,7 +126,7 @@ export class UserRepository implements IUserRepository {
         ExclusiveStartKey,
       });
 
-      const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
       if (res.Items) {
         items.push(...res.Items);
       }

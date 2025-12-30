@@ -7,7 +7,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { Order, OrderStatus, OrderItem, PaymentStatus } from "@/utils/schemas/order";
 import { IOrderRepository } from "../../domain/repositories/IOrderRepository";
-import { dynamoDBClient } from "@/infrastructure/database";
+import { dynamoDBDocumentClient } from "@/infrastructure/database";
 import { DynamoDBResult } from "@/infrastructure/database/dynamodb";
 
 export class OrderRepository implements IOrderRepository {
@@ -17,14 +17,14 @@ export class OrderRepository implements IOrderRepository {
   private statusIndex?: string;
 
   constructor() {
-    this.tableName = process.env.DYNAMODB_TABLE_ORDERS ?? "Order";
+    this.tableName = process.env.DYNAMODB_TABLE_ORDERS ?? process.env.DYNAMODB_TABLE_ORDER ?? "Order";
     this.customerIndex = process.env.DYNAMODB_ORDERS_CUSTOMER_INDEX;
     this.sellerIndex = process.env.DYNAMODB_ORDERS_SELLER_INDEX;
     this.statusIndex = process.env.DYNAMODB_ORDERS_STATUS_INDEX;
 
-    if (!process.env.DYNAMODB_TABLE_ORDERS) {
+    if (!process.env.DYNAMODB_TABLE_ORDERS && !process.env.DYNAMODB_TABLE_ORDER) {
       console.warn(
-        '[OrderRepository] DYNAMODB_TABLE_ORDERS not set, defaulting to "Order".',
+        `[OrderRepository] DYNAMODB_TABLE_ORDERS not set, defaulting to "${this.tableName}".`,
       );
     }
   }
@@ -55,7 +55,7 @@ export class OrderRepository implements IOrderRepository {
       Key: { id },
     });
 
-    const res = await dynamoDBClient.send(cmd);
+    const res = await dynamoDBDocumentClient.send(cmd);
     if (!res.Item) return null;
     return this.itemToOrder(res.Item);
   }
@@ -70,7 +70,7 @@ export class OrderRepository implements IOrderRepository {
         ExclusiveStartKey,
       });
 
-      const res = await dynamoDBClient.send(cmd);
+      const res = await dynamoDBDocumentClient.send(cmd);
       if (res.Items) {
         items.push(...(res.Items as Record<string, unknown>[]));
       }
@@ -89,7 +89,7 @@ export class OrderRepository implements IOrderRepository {
         ExpressionAttributeValues: { ":customerId": customerId },
       });
 
-      const res = await dynamoDBClient.send(cmd);
+      const res = await dynamoDBDocumentClient.send(cmd);
       return this.mapItems(res.Items as Record<string, unknown>[]);
     }
 
@@ -106,7 +106,7 @@ export class OrderRepository implements IOrderRepository {
         ExpressionAttributeValues: { ":sellerId": sellerId },
       });
 
-      const res = await dynamoDBClient.send(cmd);
+      const res = await dynamoDBDocumentClient.send(cmd);
       return this.mapItems(res.Items as Record<string, unknown>[]);
     }
 
@@ -124,7 +124,7 @@ export class OrderRepository implements IOrderRepository {
         ExpressionAttributeValues: { ":status": status },
       });
 
-      const res = await dynamoDBClient.send(cmd);
+      const res = await dynamoDBDocumentClient.send(cmd);
       return this.mapItems(res.Items as Record<string, unknown>[]);
     }
 
@@ -140,7 +140,7 @@ export class OrderRepository implements IOrderRepository {
         updatedAt: order.updatedAt instanceof Date ? order.updatedAt.toISOString() : new Date(order.updatedAt).toISOString(),
       };
 
-      await dynamoDBClient.send(
+      await dynamoDBDocumentClient.send(
         new PutCommand({
           TableName: this.tableName,
           Item: item,
@@ -162,7 +162,7 @@ export class OrderRepository implements IOrderRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = (await dynamoDBClient.send(
+    const res = (await dynamoDBDocumentClient.send(
       new DeleteCommand({
         TableName: this.tableName,
         Key: { id },
