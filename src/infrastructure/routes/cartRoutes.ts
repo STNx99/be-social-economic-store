@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { Container } from "../dependencies/Container";
-import { authMiddleware } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 
 export const setupCartRoutes = (app: Hono) => {
   const container = Container.getInstance();
@@ -8,7 +8,7 @@ export const setupCartRoutes = (app: Hono) => {
 
   const cartRoutes = new Hono();
 
-  cartRoutes.use("/*", authMiddleware);
+  cartRoutes.use("/*", requireAuth());
 
   cartRoutes.get("/", (c) => cartController.getCart(c));
   cartRoutes.post("/add", (c) => cartController.addToCart(c));
