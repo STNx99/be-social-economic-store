@@ -31,7 +31,6 @@ export class WsController {
       const message = result.data;
 
       if (message.userId !== userId) {
-        console.warn(`[WsController] Security Alert: User ID mismatch for ${clientId}`);
         return;
       }
 

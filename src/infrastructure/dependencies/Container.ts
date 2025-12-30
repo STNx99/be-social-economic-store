@@ -52,6 +52,7 @@ export class Container {
     this.productUseCase = new ProductUseCase(
       this.productRepository,
       this.s3Service,
+      this.categoryRepository,
     );
     this.categoryUseCase = new CategoryUseCase(
       this.categoryRepository,

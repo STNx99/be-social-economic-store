@@ -1,14 +1,14 @@
 import { z } from 'zod';
 
 
-export const IDSchema = z.string().uuid('Invalid ID format');
+export const IDSchema = z.uuid('Invalid ID format');
 export const OptionalIDSchema = IDSchema.optional();
 
 
 export const RequiredStringSchema = z.string().min(1, 'This field is required');
 
 
-export const EmailSchema = z.string()
+export const EmailSchema = z
   .email('Invalid email format')
   .refine(
     (email) => {
@@ -44,10 +44,13 @@ export const NameSchema = z.string()
   );
 
 
-export const UUIDSchema = z.string().uuid('Invalid UUID format');
+export const UserRoleSchema = z.enum(['admin', 'customer', 'seller']).default('customer');
 
 
-export const URLSchema = z.string().url('Invalid URL format');
+export const UUIDSchema = z.uuid('Invalid UUID format');
+
+
+export const URLSchema = z.url('Invalid URL format');
 
 
 export const PositiveNumberSchema = z.number().positive('Must be a positive number');
@@ -80,4 +83,5 @@ export type RequiredString = z.infer<typeof RequiredStringSchema>;
 export type Email = z.infer<typeof EmailSchema>;
 export type Password = z.infer<typeof PasswordSchema>;
 export type Name = z.infer<typeof NameSchema>;
+export type UserRole = z.infer<typeof UserRoleSchema>;
 export type UUID = z.infer<typeof UUIDSchema>;

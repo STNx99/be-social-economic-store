@@ -16,6 +16,7 @@ import { ProductStatus } from "@/utils/schemas/endpoints/products";
  */
 export class ProductEntity implements Product {
   private idValue: string;
+  private sellerIdValue: string;
   private nameValue: string;
   private descriptionValue?: string;
   private priceValue: number;
@@ -28,6 +29,7 @@ export class ProductEntity implements Product {
 
   constructor(
     id: string,
+    sellerId: string,
     name: string,
     price: number,
     stock: number,
@@ -39,6 +41,7 @@ export class ProductEntity implements Product {
     updatedAt?: Date,
   ) {
     this.idValue = id;
+    this.sellerIdValue = sellerId;
     this.nameValue = name;
     this.priceValue = price;
     this.stockValue = stock;
@@ -53,6 +56,10 @@ export class ProductEntity implements Product {
   // Getters (expose read-only properties)
   get id(): string {
     return this.idValue;
+  }
+
+  get sellerId(): string {
+    return this.sellerIdValue;
   }
 
   get name(): string {
@@ -139,10 +146,10 @@ export class ProductEntity implements Product {
     return this.status === "inactive" || this.stock === 0;
   }
 
-  // Convert entity to plain Product object (suitable for repositories)
   toJSON(): Product {
     return {
       id: this.id,
+      sellerId: this.sellerId,
       name: this.name,
       description: this.description,
       price: this.price,
@@ -155,10 +162,10 @@ export class ProductEntity implements Product {
     };
   }
 
-  // Factory to recreate an entity from a validated plain Product
   static fromValidatedData(data: Product): ProductEntity {
     return new ProductEntity(
       data.id,
+      data.sellerId,
       data.name,
       data.price,
       data.stock,

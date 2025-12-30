@@ -5,7 +5,7 @@ import {
   QueryCommand,
   ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
-import { User } from "@/utils";
+import { User, UserRole } from "@/utils";
 import { IUserRepository } from "@/domain/repositories/IUserRepository";
 import { dynamoDBClient, DynamoDBResult } from "@/infrastructure/database/dynamodb";
 
@@ -30,6 +30,7 @@ export class UserRepository implements IUserRepository {
       email: item.email as string,
       name: item.name as string,
       password: item.password as string,
+      role: (item.role as UserRole) || "customer", 
       createdAt: item.createdAt ? new Date(item.createdAt as string) : new Date(),
       updatedAt: item.updatedAt ? new Date(item.updatedAt as string) : new Date(),
     };
@@ -79,6 +80,7 @@ export class UserRepository implements IUserRepository {
       email: user.email,
       name: user.name,
       password: user.password,
+      role: user.role,
       createdAt:
         user.createdAt instanceof Date
           ? user.createdAt.toISOString()
