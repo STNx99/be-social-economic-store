@@ -36,7 +36,7 @@ export class ProductController {
     } catch (error) {
       console.error(error);
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "lỗi"),
+        StatusBuilder.fail(error instanceof Error ? error.message : "error"),
         500,
       );
     }
@@ -59,9 +59,9 @@ export class ProductController {
         return c.json(response, 404);
       }
     } catch (error) {
-      console.error(error); // lỗi sever
+      console.error(error);
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "lỗi"),
+        StatusBuilder.fail(error instanceof Error ? error.message : "error"),
         500,
       );
     }
@@ -88,7 +88,7 @@ export class ProductController {
         return c.json(response, 400);
       }
     } catch (error) {
-      console.error(error); // lỗi sever
+      console.error(error);
       return c.json(
         StatusBuilder.fail(
           error instanceof Error ? error.message : "rồi luôn server căng cọt",
@@ -114,7 +114,7 @@ export class ProductController {
         return c.json(response, 404);
       }
     } catch (error) {
-      console.error(error); // lỗi sever
+      console.error(error);
       return c.json(
         StatusBuilder.fail(error instanceof Error ? error.message : "gg"),
         500,
@@ -167,7 +167,7 @@ export class ProductController {
         return c.json(response, 400);
       }
     } catch (error) {
-      console.error(error); // lỗi sever
+      console.error(error);
       return c.json(
         StatusBuilder.fail(error instanceof Error ? error.message : "gg"),
         500,

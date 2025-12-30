@@ -68,7 +68,7 @@ export class AuthUseCase {
       // 6. Lưu vào repository (memory)
       const savedUser = await this.userRepository.save(user);
 
-      // 7. Return response (không trả về password)
+      // 7. Return response (password is not returned)
       return StatusBuilder.ok({
         id: savedUser.id,
         name: savedUser.name,
