@@ -31,16 +31,25 @@ export class ProductRepository implements IProductRepository {
   private itemToProduct(item: Record<string, unknown>): Product {
     return {
       id: item.id as string,
+      sellerId: item.sellerId as string,
       name: item.name as string,
       description: item.description as string | undefined,
       price: item.price as number,
       stock: item.stock as number,
       images: Array.isArray(item.images) ? (item.images as string[]) : [],
       category: item.category as string,
-      status: (item.status as ProductStatus) || "active",
-      createdAt: item.createdAt ? new Date(item.createdAt as string) : new Date(),
-      updatedAt: item.updatedAt ? new Date(item.updatedAt as string) : new Date(),
+      status: (item.status as ProductStatus) || "pending",
+      createdAt: item.createdAt
+        ? new Date(item.createdAt as string)
+        : new Date(),
+      updatedAt: item.updatedAt
+        ? new Date(item.updatedAt as string)
+        : new Date(),
     };
+  }
+
+  private mapItems(items?: Record<string, unknown>[]): Product[] {
+    return (items ?? []).map((item) => this.itemToProduct(item));
   }
 
   async findById(id: string): Promise<Product | null> {
@@ -49,7 +58,7 @@ export class ProductRepository implements IProductRepository {
       Key: { id },
     });
 
-    const res = await dynamoDBClient.send(cmd) as DynamoDBResult;
+    const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
     if (!res.Item) return null;
     return this.itemToProduct(res.Item);
   }
@@ -64,14 +73,14 @@ export class ProductRepository implements IProductRepository {
         ExclusiveStartKey,
       });
 
-      const res = await dynamoDBClient.send(cmd) as DynamoDBResult;
+      const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
       if (res.Items) {
         items.push(...(res.Items as Record<string, unknown>[]));
       }
       ExclusiveStartKey = res.LastEvaluatedKey;
     } while (ExclusiveStartKey);
 
-    return items.map((it) => this.itemToProduct(it));
+    return this.mapItems(items);
   }
 
   async findByCategory(category: string): Promise<Product[]> {
@@ -83,7 +92,7 @@ export class ProductRepository implements IProductRepository {
         ExpressionAttributeValues: { ":category": category },
       });
 
-      const res = await dynamoDBClient.send(cmd) as DynamoDBResult;
+      const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
       return this.mapItems(res.Items as Record<string, unknown>[]);
     }
 
@@ -100,11 +109,10 @@ export class ProductRepository implements IProductRepository {
         ExpressionAttributeValues: { ":status": status },
       });
 
-      const res = await dynamoDBClient.send(cmd) as DynamoDBResult;
+      const res = (await dynamoDBClient.send(cmd)) as DynamoDBResult;
       return this.mapItems(res.Items as Record<string, unknown>[]);
     }
 
-    // Fallback to scan if no index
     const allProducts = await this.findAll();
     return allProducts.filter((p) => p.status === status);
   }
@@ -123,13 +131,14 @@ export class ProductRepository implements IProductRepository {
     try {
       const item = {
         id: product.id,
+        sellerId: product.sellerId,
         name: product.name,
         description: product.description,
         price: product.price,
         stock: product.stock,
         images: product.images || [],
         category: product.category,
-        status: product.status || "active",
+        status: product.status || "pending",
         createdAt:
           product.createdAt instanceof Date
             ? product.createdAt.toISOString()
@@ -161,7 +170,9 @@ export class ProductRepository implements IProductRepository {
       if (
         awsError?.name === "ResourceNotFoundException" ||
         awsError?.code === "ResourceNotFoundException" ||
-        awsError?.message?.includes("Cannot do operations on a non-existent table")
+        awsError?.message?.includes(
+          "Cannot do operations on a non-existent table",
+        )
       ) {
         throw new Error(
           `DynamoDB table "${this.tableName}" does not exist. Please create the table first.`,
@@ -173,13 +184,13 @@ export class ProductRepository implements IProductRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res: any = await dynamoDBClient.send(
+    const res = (await dynamoDBClient.send(
       new DeleteCommand({
         TableName: this.tableName,
         Key: { id },
         ReturnValues: "ALL_OLD",
       }),
-    ) as DynamoDBResult;
+    )) as DynamoDBResult;
 
     return !!res.Attributes;
   }
@@ -187,7 +198,6 @@ export class ProductRepository implements IProductRepository {
   async findByIds(ids: string[]): Promise<Product[]> {
     if (ids.length === 0) return [];
 
-    // DynamoDB BatchGetItem has a limit of 100 items
     const batches: string[][] = [];
     for (let i = 0; i < ids.length; i += 100) {
       batches.push(ids.slice(i, i + 100));

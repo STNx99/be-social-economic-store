@@ -1,5 +1,6 @@
 export {
   ValidationErrorDetailSchema,
+  BaseResponseSchema,
   SuccessResponseSchema,
   ErrorResponseSchema,
   ValidationErrorSchema,
@@ -9,7 +10,10 @@ export {
   NotFoundResponseSchema,
   InternalServerErrorResponseSchema,
   createSuccessResponseSchema,
+  createErrorResponseSchema,
+  createEndpointResponseSchema,
   type ValidationErrorDetail,
+  type BaseResponse,
   type BadRequestResponse,
   type UnauthorizedResponse,
   type ForbiddenResponse,

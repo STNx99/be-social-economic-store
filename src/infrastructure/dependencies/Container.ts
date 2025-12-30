@@ -8,6 +8,7 @@ import { ICategoryRepository } from "../../domain/repositories/ICategoryReposito
 import { IOrderRepository } from "../../domain/repositories/IOrderRepository";
 import { IPaymentRepository } from "../../domain/repositories/IPaymentRepository";
 import { IShipmentRepository } from "../../domain/repositories/IShipmentRepository";
+import { ICartRepository } from "../../domain/repositories/ICartRepository";
 import { UserController } from "../../adapters/controllers/UserController";
 import { AuthController } from "../../adapters/controllers/AuthController";
 import { ProductController } from "../../adapters/controllers/ProductController";
@@ -15,12 +16,14 @@ import { CategoryController } from "../../adapters/controllers/CategoryControlle
 import { OrderController } from "../../adapters/controllers/OrderController";
 import { PaymentController } from "../../adapters/controllers/PaymentController";
 import { ShipmentController } from "../../adapters/controllers/ShipmentController";
+import { CartController } from "../../adapters/controllers/CartController";
 import { UserRepository } from "@/adapters/repositories/UserRepository";
 import { ProductRepository } from "@/adapters/repositories/ProductRepository";
 import { CategoryRepository } from "@/adapters/repositories/CategoryRepository";
 import { OrderRepository } from "@/adapters/repositories/OrderRepository";
 import { MockPaymentRepository } from "@/adapters/repositories/MockPaymentRepository";
 import { MockShipmentRepository } from "@/adapters/repositories/MockShipmentRepository";
+import { CartRepository } from "@/adapters/repositories/CartRepository";
 import { WsRepository } from "@/adapters/repositories/WsRepository";
 import { UserUseCase } from "@/application/usecases/UserUseCase";
 import { AuthUseCase } from "@/application/usecases/AuthUseCase";
@@ -30,12 +33,14 @@ import { CategoryUseCase } from "@/application/usecases/CategoryUseCase";
 import { OrderUseCase } from "@/application/usecases/OrderUseCase";
 import { PaymentUseCase } from "@/application/usecases/PaymentUseCase";
 import { ShipmentUseCase } from "@/application/usecases/ShipmentUseCase";
+import { CartUseCase } from "@/application/usecases/CartUseCase";
 import { S3Service } from "@/infrastructure/s3/s3Service";
 import { IProductUseCase } from "@/domain/usecases/IProductUseCase";
 import { ICategoryUseCase } from "@/domain/usecases/ICategoryUseCase";
 import { IOrderUseCase } from "@/domain/usecases/IOrderUseCase";
 import { IPaymentUseCase } from "@/domain/usecases/IPaymentUseCase";
 import { IShipmentUseCase } from "@/domain/usecases/IShipmentUseCase";
+import { ICartUseCase } from "@/domain/usecases/ICartUseCase";
 
 export class Container {
   private static instance: Container;
@@ -45,6 +50,7 @@ export class Container {
   private orderRepository: IOrderRepository;
   private paymentRepository: IPaymentRepository;
   private shipmentRepository: IShipmentRepository;
+  private cartRepository: ICartRepository;
   private wsRepository: IWsRepository;
   private userUseCase: IUserUseCase;
   private authUseCase: IAuthUseCase;
@@ -54,6 +60,7 @@ export class Container {
   private orderUseCase: IOrderUseCase;
   private paymentUseCase: IPaymentUseCase;
   private shipmentUseCase: IShipmentUseCase;
+  private cartUseCase: ICartUseCase;
   private userController: UserController;
   private authController: AuthController;
   private productController: ProductController;
@@ -61,6 +68,7 @@ export class Container {
   private orderController: OrderController;
   private paymentController: PaymentController;
   private shipmentController: ShipmentController;
+  private cartController: CartController;
   private s3Service: S3Service;
 
   private constructor() {
@@ -70,6 +78,7 @@ export class Container {
     this.orderRepository = new OrderRepository();
     this.paymentRepository = new MockPaymentRepository();
     this.shipmentRepository = new MockShipmentRepository();
+    this.cartRepository = new CartRepository();
     this.wsRepository = new WsRepository();
     this.s3Service = new S3Service();
 
@@ -79,6 +88,7 @@ export class Container {
     this.productUseCase = new ProductUseCase(
       this.productRepository,
       this.s3Service,
+      this.categoryRepository,
     );
     this.categoryUseCase = new CategoryUseCase(
       this.categoryRepository,
@@ -86,6 +96,10 @@ export class Container {
     this.orderUseCase = new OrderUseCase(this.orderRepository);
     this.paymentUseCase = new PaymentUseCase(this.paymentRepository, this.orderRepository);
     this.shipmentUseCase = new ShipmentUseCase(this.shipmentRepository, this.orderRepository);
+    this.cartUseCase = new CartUseCase(
+      this.cartRepository,
+      this.productRepository,
+    );
 
     this.userController = new UserController(this.userUseCase);
     this.authController = new AuthController(this.authUseCase);
@@ -94,6 +108,7 @@ export class Container {
     this.orderController = new OrderController(this.orderUseCase);
     this.paymentController = new PaymentController(this.paymentUseCase);
     this.shipmentController = new ShipmentController(this.shipmentUseCase);
+    this.cartController = new CartController(this.cartUseCase);
   }
 
   static getInstance(): Container {
@@ -145,5 +160,9 @@ export class Container {
 
   getShipmentController(): ShipmentController {
     return this.shipmentController;
+  }
+
+  getCartController(): CartController {
+    return this.cartController;
   }
 }

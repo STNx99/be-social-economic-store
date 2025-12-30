@@ -1,4 +1,15 @@
 export {
+  AuthLoginRequestSchema,
+  AuthLoginResponseSchema,
+  AuthRegisterRequestSchema,
+  AuthRegisterResponseSchema,
+  type AuthLoginRequest,
+  type AuthLoginResponse,
+  type AuthRegisterRequest,
+  type AuthRegisterResponse,
+} from "./auth";
+
+export {
   CreateUserRequestSchema,
   CreateUserResponseSchema,
   GetUserRequestSchema,
@@ -58,3 +69,26 @@ export {
   type ListCategoriesRequest,
   type ListCategoriesResponse,
 } from "./categories";
+
+export {
+  AddToCartRequestSchema,
+  AddToCartResponseSchema,
+  GetCartRequestSchema,
+  GetCartResponseSchema,
+  UpdateCartItemRequestSchema,
+  UpdateCartItemResponseSchema,
+  RemoveFromCartRequestSchema,
+  RemoveFromCartResponseSchema,
+  ClearCartRequestSchema,
+  ClearCartResponseSchema,
+  type AddToCartRequest,
+  type AddToCartResponse,
+  type GetCartRequest,
+  type GetCartResponse,
+  type UpdateCartItemRequest,
+  type UpdateCartItemResponse,
+  type RemoveFromCartRequest,
+  type RemoveFromCartResponse,
+  type ClearCartRequest,
+  type ClearCartResponse,
+} from "./cart";

@@ -1,23 +1,22 @@
 import { z } from 'zod';
-import { EmailSchema, NameSchema, IDSchema, DateSchema, PasswordSchema } from '@/utils/schemas/common';
+import { EmailSchema, NameSchema, PasswordSchema, UserRoleSchema } from './common';
+import { 
+  BaseEntityFields, 
+  entityDateRefinement, 
+  atLeastOneFieldRefinement, 
+  createIdParamSchema 
+} from './entity';
 
 /**
  * User entity schema with validation rules
  */
 export const UserSchema = z.object({
-  id: IDSchema,
+  ...BaseEntityFields,
   email: EmailSchema,
   name: NameSchema,
   password: PasswordSchema,
-  createdAt: DateSchema,
-  updatedAt: DateSchema
-}).refine(
-  (user) => user.updatedAt >= user.createdAt,
-  {
-    message: 'Updated date cannot be before creation date',
-    path: ['updatedAt']
-  }
-);
+  role: UserRoleSchema,
+}).refine(...entityDateRefinement);
 
 /**
  * Schema for validating user creation input
@@ -25,7 +24,8 @@ export const UserSchema = z.object({
 export const CreateUserSchema = z.object({
   email: EmailSchema,
   name: NameSchema,
-  password: PasswordSchema
+  password: PasswordSchema,
+  role: UserRoleSchema.optional(),
 });
 
 /**
@@ -34,11 +34,9 @@ export const CreateUserSchema = z.object({
 export const UpdateUserSchema = z.object({
   name: NameSchema.optional(),
   email: EmailSchema.optional(),
-  password: PasswordSchema.optional()
-}).refine(
-  (data) => Object.keys(data).length > 0,
-  'At least one field must be provided for update'
-);
+  password: PasswordSchema.optional(),
+  role: UserRoleSchema.optional(),
+}).refine(...atLeastOneFieldRefinement);
 
 /**
  * Raw user input schema for API validation
@@ -46,7 +44,8 @@ export const UpdateUserSchema = z.object({
 export const UserInputSchema = z.object({
   email: EmailSchema,
   name: NameSchema,
-  password: PasswordSchema
+  password: PasswordSchema,
+  role: UserRoleSchema.optional(),
 }).strict();
 
 /**
@@ -55,15 +54,14 @@ export const UserInputSchema = z.object({
 export const SanitizedUserInputSchema = UserInputSchema.transform((data) => ({
   email: data.email.trim().toLowerCase(),
   name: data.name.trim(),
-  password: data.password
+  password: data.password,
+  role: data.role,
 }));
 
 /**
  * Schema for validating user ID parameters
  */
-export const UserIdParamSchema = z.object({
-  id: IDSchema
-});
+export const UserIdParamSchema = createIdParamSchema();
 
 // Type exports
 export type User = z.infer<typeof UserSchema>;

@@ -1,88 +1,72 @@
 import { z } from "zod";
 import { CategorySchema } from "../category";
+import { IDSchema } from "../common";
+import { createEndpointResponseSchema, BaseResponseSchema } from "../responses/common";
 
+/**
+ * Schema for creating a new category via API
+ */
 export const CreateCategoryRequestSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
   slug: z.string().max(100).optional(),
 });
 
-export const CreateCategoryResponseSchema = z.object({
-  success: z.boolean(),
-  data: CategorySchema.optional(),
-  error: z.string().optional(),
-  details: z
-    .array(
-      z.object({
-        field: z.string(),
-        message: z.string(),
-      }),
-    )
-    .optional(),
-});
+/**
+ * Response schema for category creation
+ */
+export const CreateCategoryResponseSchema = createEndpointResponseSchema(CategorySchema);
 
+/**
+ * Schema for getting a category by ID via API
+ */
 export const GetCategoryRequestSchema = z.object({
-  id: z.string().uuid(),
+  id: IDSchema,
 });
 
-export const GetCategoryResponseSchema = z.object({
-  success: z.boolean(),
-  data: CategorySchema.optional(),
-  error: z.string().optional(),
-  details: z
-    .array(
-      z.object({
-        field: z.string(),
-        message: z.string(),
-      }),
-    )
-    .optional(),
-});
+/**
+ * Response schema for getting a category
+ */
+export const GetCategoryResponseSchema = createEndpointResponseSchema(CategorySchema);
 
+/**
+ * Schema for updating a category via API
+ */
 export const UpdateCategoryRequestSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
   slug: z.string().max(100).optional(),
 });
 
-export const UpdateCategoryResponseSchema = z.object({
-  success: z.boolean(),
-  data: CategorySchema.optional(),
-  error: z.string().optional(),
-  details: z
-    .array(
-      z.object({
-        field: z.string(),
-        message: z.string(),
-      }),
-    )
-    .optional(),
-});
+/**
+ * Response schema for category update
+ */
+export const UpdateCategoryResponseSchema = createEndpointResponseSchema(CategorySchema);
 
+/**
+ * Schema for deleting a category via API
+ */
 export const DeleteCategoryRequestSchema = z.object({
-  id: z.string().uuid(),
+  id: IDSchema,
 });
 
-export const DeleteCategoryResponseSchema = z.object({
-  success: z.boolean(),
-  error: z.string().optional(),
-  details: z
-    .array(
-      z.object({
-        field: z.string(),
-        message: z.string(),
-      }),
-    )
-    .optional(),
-});
+/**
+ * Response schema for category deletion
+ */
+export const DeleteCategoryResponseSchema = BaseResponseSchema;
 
+/**
+ * Schema for listing categories with pagination
+ */
 export const ListCategoriesRequestSchema = z.object({
   page: z.number().int().positive().optional().default(1),
   limit: z.number().int().positive().max(100).optional().default(10),
 });
 
-export const ListCategoriesResponseSchema = z.object({
-  success: z.boolean(),
+/**
+ * Response schema for listing categories
+ */
+export const ListCategoriesResponseSchema = BaseResponseSchema.extend({
   data: z.array(CategorySchema).optional(),
   pagination: z.object({
     page: z.number(),
@@ -90,9 +74,9 @@ export const ListCategoriesResponseSchema = z.object({
     total: z.number(),
     totalPages: z.number(),
   }).optional(),
-  error: z.string().optional(),
 });
 
+// Type exports
 export type CreateCategoryRequest = z.infer<typeof CreateCategoryRequestSchema>;
 export type CreateCategoryResponse = z.infer<typeof CreateCategoryResponseSchema>;
 export type GetCategoryRequest = z.infer<typeof GetCategoryRequestSchema>;
@@ -103,4 +87,3 @@ export type DeleteCategoryRequest = z.infer<typeof DeleteCategoryRequestSchema>;
 export type DeleteCategoryResponse = z.infer<typeof DeleteCategoryResponseSchema>;
 export type ListCategoriesRequest = z.infer<typeof ListCategoriesRequestSchema>;
 export type ListCategoriesResponse = z.infer<typeof ListCategoriesResponseSchema>;
-

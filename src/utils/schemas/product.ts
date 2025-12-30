@@ -1,77 +1,83 @@
 import { z } from 'zod';
+import { PositiveNumberSchema, NonEmptyStringSchema, URLSchema } from './common';
 import { 
-  IDSchema, 
-  DateSchema, 
-  PositiveNumberSchema, 
-  NonEmptyStringSchema, 
-  URLSchema,
+  BaseEntityFields, 
+  entityDateRefinement, 
+  atLeastOneFieldRefinement, 
   createIdParamSchema 
-} from '@/utils/schemas/common';
+} from './entity';
 
-
+/**
+ * Product entity schema with validation rules
+ */
 export const ProductSchema = z.object({
-  id: IDSchema,
+  ...BaseEntityFields,
+  sellerId: NonEmptyStringSchema,
   name: NonEmptyStringSchema.max(200, 'Product name must be less than 200 characters'),
   description: z.string().max(2000, 'Description must be less than 2000 characters').optional(),
   price: PositiveNumberSchema,
   stock: z.number().int().min(0, 'Stock cannot be negative'),
   images: z.array(URLSchema).default([]),
   category: NonEmptyStringSchema.max(100, 'Category must be less than 100 characters').optional(),
-  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected']).default('active'),
-  createdAt: DateSchema,
-  updatedAt: DateSchema
-}).refine(
-  (product) => product.updatedAt >= product.createdAt,
-  {
-    message: 'Updated date cannot be before creation date',
-    path: ['updatedAt']
-  }
-);
+  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected', 'archived', 'draft']).default('pending'),
+}).refine(...entityDateRefinement);
 
-
+/**
+ * Schema for validating product creation input
+ */
 export const CreateProductSchema = z.object({
+  sellerId: NonEmptyStringSchema,
   name: NonEmptyStringSchema.max(200, 'Product name must be less than 200 characters'),
   description: z.string().max(2000, 'Description must be less than 2000 characters').optional(),
   price: PositiveNumberSchema,
   stock: z.number().int().min(0, 'Stock cannot be negative'),
   images: z.array(URLSchema).default([]),
   category: NonEmptyStringSchema.max(100, 'Category must be less than 100 characters').optional(),
-  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected']).optional().default('active')
+  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected', 'archived', 'draft']).optional().default('pending')
 });
 
+/**
+ * Schema for validating product update input (at least one field required)
+ */
 export const UpdateProductSchema = z.object({
+  sellerId: NonEmptyStringSchema.optional(),
   name: NonEmptyStringSchema.max(200, 'Product name must be less than 200 characters').optional(),
   description: z.string().max(2000, 'Description must be less than 2000 characters').optional(),
   price: PositiveNumberSchema.optional(),
   stock: z.number().int().min(0, 'Stock cannot be negative').optional(),
   images: z.array(URLSchema).optional(),
   category: NonEmptyStringSchema.max(100, 'Category must be less than 100 characters').optional(),
-  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected']).optional()
-}).refine(
-  (data) => Object.keys(data).length > 0,
-  'At least one field must be provided for update'
-);
+  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected', 'archived', 'draft']).optional()
+}).refine(...atLeastOneFieldRefinement);
 
+/**
+ * Raw product input schema for API validation
+ */
 export const ProductInputSchema = z.object({
+  sellerId: NonEmptyStringSchema,
   name: NonEmptyStringSchema.max(200),
   description: z.string().max(2000).optional(),
   price: PositiveNumberSchema,
   stock: z.number().int().min(0),
   images: z.array(URLSchema).optional().default([]),
   category: z.string().max(100).optional(),
-  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected']).optional().default('active')
+  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected', 'archived', 'draft']).optional().default('pending')
 });
 
 export const SanitizedProductInputSchema = ProductInputSchema.transform((data) => ({
+  sellerId: data.sellerId.trim(),
   name: data.name.trim(),
   description: data.description?.trim(),
   price: data.price,
   stock: data.stock,
   images: Array.isArray(data.images) ? data.images : [],
   category: data.category?.trim() || undefined,
-  status: data.status || 'active'
+  status: data.status || 'pending'
 }));
 
+/**
+ * Schema for validating product ID parameters
+ */
 export const ProductIdParamSchema = createIdParamSchema();
 
 export type Product = z.infer<typeof ProductSchema>;

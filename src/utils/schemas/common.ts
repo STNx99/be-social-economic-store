@@ -8,7 +8,7 @@ export const OptionalIDSchema = IDSchema.optional();
 export const RequiredStringSchema = z.string().min(1, 'This field is required');
 
 
-export const EmailSchema = z.string()
+export const EmailSchema = z
   .email('Invalid email format')
   .refine(
     (email) => {
@@ -44,7 +44,10 @@ export const NameSchema = z.string()
   );
 
 
-export const UserRoleSchema = z.enum(['admin', 'customer']).default('customer');
+export const UserRoleSchema = z.enum(['admin', 'customer', 'seller']).default('customer');
+
+
+export const UUIDSchema = z.string().uuid('Invalid UUID format');
 
 
 export const URLSchema = z.string().url('Invalid URL format');
@@ -73,13 +76,6 @@ export const PastDateSchema = z.date().refine(
   'Date must be in the past'
 );
 
-/**
- * Helper to create a schema for validating an ID parameter
- */
-export const createIdParamSchema = () => z.object({
-  id: IDSchema
-});
-
 
 export type ID = z.infer<typeof IDSchema>;
 export type OptionalID = z.infer<typeof OptionalIDSchema>;
@@ -87,3 +83,5 @@ export type RequiredString = z.infer<typeof RequiredStringSchema>;
 export type Email = z.infer<typeof EmailSchema>;
 export type Password = z.infer<typeof PasswordSchema>;
 export type Name = z.infer<typeof NameSchema>;
+export type UserRole = z.infer<typeof UserRoleSchema>;
+export type UUID = z.infer<typeof UUIDSchema>;

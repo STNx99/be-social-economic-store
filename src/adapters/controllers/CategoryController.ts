@@ -27,7 +27,7 @@ export class CategoryController {
     } catch (error) {
       console.error(error);
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "lỗi"),
+        StatusBuilder.fail(error instanceof Error ? error.message : "error"),
         500,
       );
     }
@@ -46,7 +46,7 @@ export class CategoryController {
     } catch (error) {
       console.error(error);
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "lỗi"),
+        StatusBuilder.fail(error instanceof Error ? error.message : "error"),
         500,
       );
     }

@@ -1,91 +1,73 @@
 import { z } from "zod";
 import { ProductSchema } from "../product";
+import { IDSchema, PositiveNumberSchema, URLSchema } from "../common";
+import { createEndpointResponseSchema, BaseResponseSchema } from "../responses/common";
 
-const productStatusEnum = z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected']);
+const productStatusEnum = z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected', 'archived', 'draft']);
 
+/**
+ * Schema for creating a new product via API
+ */
 export const CreateProductRequestSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
-  price: z.number().positive(),
+  price: PositiveNumberSchema,
   stock: z.number().int().min(0),
-  images: z.array(z.string().url()).default([]),
+  images: z.array(URLSchema).default([]),
   category: z.string().max(100).optional(),
-  status: productStatusEnum.optional().default('active'),
+  status: productStatusEnum.optional().default('pending'),
 });
 
-export const CreateProductResponseSchema = z.object({
-  success: z.boolean(),
-  data: ProductSchema.optional(),
-  error: z.string().optional(),
-  details: z
-    .array(
-      z.object({
-        field: z.string(),
-        message: z.string(),
-      }),
-    )
-    .optional(),
-});
+/**
+ * Response schema for product creation
+ */
+export const CreateProductResponseSchema = createEndpointResponseSchema(ProductSchema);
 
+/**
+ * Schema for getting a product by ID via API
+ */
 export const GetProductRequestSchema = z.object({
-  id: z.string().uuid(),
+  id: IDSchema,
 });
 
-export const GetProductResponseSchema = z.object({
-  success: z.boolean(),
-  data: ProductSchema.optional(),
-  error: z.string().optional(),
-  details: z
-    .array(
-      z.object({
-        field: z.string(),
-        message: z.string(),
-      }),
-    )
-    .optional(),
-});
+/**
+ * Response schema for getting a product
+ */
+export const GetProductResponseSchema = createEndpointResponseSchema(ProductSchema);
 
+/**
+ * Schema for updating a product via API
+ */
 export const UpdateProductRequestSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional(),
-  price: z.number().positive().optional(),
+  price: PositiveNumberSchema.optional(),
   stock: z.number().int().min(0).optional(),
-  images: z.array(z.string().url()).optional(),
+  images: z.array(URLSchema).optional(),
   category: z.string().max(100).optional(),
   status: productStatusEnum.optional(),
 });
 
-export const UpdateProductResponseSchema = z.object({
-  success: z.boolean(),
-  data: ProductSchema.optional(),
-  error: z.string().optional(),
-  details: z
-    .array(
-      z.object({
-        field: z.string(),
-        message: z.string(),
-      }),
-    )
-    .optional(),
-});
+/**
+ * Response schema for product update
+ */
+export const UpdateProductResponseSchema = createEndpointResponseSchema(ProductSchema);
 
+/**
+ * Schema for deleting a product via API
+ */
 export const DeleteProductRequestSchema = z.object({
-  id: z.string().uuid(),
+  id: IDSchema,
 });
 
-export const DeleteProductResponseSchema = z.object({
-  success: z.boolean(),
-  error: z.string().optional(),
-  details: z
-    .array(
-      z.object({
-        field: z.string(),
-        message: z.string(),
-      }),
-    )
-    .optional(),
-});
+/**
+ * Response schema for product deletion
+ */
+export const DeleteProductResponseSchema = BaseResponseSchema;
 
+/**
+ * Schema for listing products with filters and pagination
+ */
 export const ListProductsRequestSchema = z.object({
   page: z.number().int().positive().optional().default(1),
   limit: z.number().int().positive().max(100).optional().default(10),
@@ -94,8 +76,10 @@ export const ListProductsRequestSchema = z.object({
   search: z.string().optional(),
 });
 
-export const ListProductsResponseSchema = z.object({
-  success: z.boolean(),
+/**
+ * Response schema for listing products
+ */
+export const ListProductsResponseSchema = BaseResponseSchema.extend({
   data: z.array(ProductSchema).optional(),
   pagination: z.object({
     page: z.number(),
@@ -103,24 +87,28 @@ export const ListProductsResponseSchema = z.object({
     total: z.number(),
     totalPages: z.number(),
   }).optional(),
-  error: z.string().optional(),
 });
 
+/**
+ * Schema for generating a presigned URL for product images
+ */
 export const GeneratePresignedUrlRequestSchema = z.object({
   fileName: z.string().min(1).max(255),
   contentType: z.string().min(1).max(100),
 });
 
-export const GeneratePresignedUrlResponseSchema = z.object({
-  success: z.boolean(),
-  data: z.object({
+/**
+ * Response schema for presigned URL generation
+ */
+export const GeneratePresignedUrlResponseSchema = createEndpointResponseSchema(
+  z.object({
     url: z.string().url(),
     key: z.string(),
     expiresIn: z.number(),
-  }).optional(),
-  error: z.string().optional(),
-});
+  })
+);
 
+// Type exports
 export type ProductStatus = z.infer<typeof productStatusEnum>;
 export type CreateProductRequest = z.infer<typeof CreateProductRequestSchema>;
 export type CreateProductResponse = z.infer<typeof CreateProductResponseSchema>;

@@ -95,7 +95,7 @@ export class CategoryUseCase implements ICategoryUseCase {
       ) {
         return StatusBuilder.fail(
           err.message ||
-            "dynamoDB không tồn tại",
+            "DynamoDB table does not exist",
         );
       }
 
@@ -125,7 +125,7 @@ export class CategoryUseCase implements ICategoryUseCase {
         return StatusBuilder.fail("Category not found", [
           {
             field: "id",
-            message: "Không có ID danh mục",
+            message: "No category exists with the provided ID",
           },
         ]);
       }

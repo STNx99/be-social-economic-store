@@ -5,6 +5,7 @@ import {
   verifyAccessToken,
 } from "@/utils/auth";
 import { StatusBuilder } from "@/utils";
+import { UserRole } from "@/utils/schemas/common";
 
 /**
  * Auth middleware for Hono routes.
@@ -43,19 +44,44 @@ export function requireAuth() {
         return c.json(StatusBuilder.fail("Unauthorized"), 401);
       }
 
-      // Attach minimal user info to context for downstream handlers/controllers
+      // Attach user info to context for downstream handlers/controllers
       c.set("user", {
         id: user.id,
         email: user.email,
         name: user.name,
+        role: user.role,
       });
       c.set("userId", user.id);
+      c.set("role", user.role);
 
       await next();
     } catch (err) {
       console.error("[AuthMiddleware] Error verifying auth token", err);
       return c.json(StatusBuilder.fail("Unauthorized"), 401);
     }
+  };
+}
+
+/**
+ * Middleware to restrict access to admin users only.
+ * Must be used after requireAuth() to ensure user info is present in context.
+ *
+ * Usage:
+ *  app.post('/api/products', requireAuth(), requireAdmin(), (c) => { ... })
+ */
+export function requireAdmin() {
+  return async (c: Context, next: Next) => {
+    const user = c.get("user");
+    const role = c.get("role") as UserRole | undefined;
+
+    if (!user || role !== "admin") {
+      return c.json(
+        StatusBuilder.fail("Forbidden: Admin access required"),
+        403,
+      );
+    }
+
+    await next();
   };
 }
 

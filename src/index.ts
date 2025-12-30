@@ -7,6 +7,7 @@ import { setupOrderRoutes } from "./infrastructure/routes/orderRoutes";
 import { setupPaymentRoutes } from "./infrastructure/routes/paymentRoutes";
 import { setupShipmentRoutes } from "./infrastructure/routes/shipmentRoutes";
 import { setupReportRoutes } from "./infrastructure/routes/reportRoutes";
+import { setupCartRoutes } from "./infrastructure/routes/cartRoutes";
 import { setUpWebsocketRoute } from "./infrastructure/routes/wsRoutes";
 import { websocket } from "hono/bun";
 
@@ -28,6 +29,7 @@ setupOrderRoutes(app);
 setupPaymentRoutes(app);
 setupShipmentRoutes(app);
 setupReportRoutes(app);
+setupCartRoutes(app);
 setUpWebsocketRoute(app);
 
 // 404 handler

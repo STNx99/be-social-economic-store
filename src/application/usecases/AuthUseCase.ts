@@ -12,6 +12,7 @@ import {
 import { SanitizedUserInputSchema } from "@/utils/schemas";
 import { CreateUserInput } from "@/utils/schemas/user";
 import bcrypt from "bcryptjs";
+import { generateAccessToken } from "@/utils/auth";
 
 export class AuthUseCase {
   constructor(private userRepository: IUserRepository) {}
@@ -61,16 +62,18 @@ export class AuthUseCase {
         validatedInput.email,
         validatedInput.name,
         hashedPassword,
+        validatedInput.role,
       );
 
       // 6. Lưu vào repository (memory)
       const savedUser = await this.userRepository.save(user);
 
-      // 7. Return response (không trả về password)
+      // 7. Return response (password is not returned)
       return StatusBuilder.ok({
         id: savedUser.id,
         name: savedUser.name,
         email: savedUser.email,
+        role: savedUser.role,
         createdAt: savedUser.createdAt,
         updatedAt: savedUser.updatedAt,
       });
@@ -127,8 +130,8 @@ export class AuthUseCase {
         ]);
       }
 
-      // 4. Generate access token (simple token cho demo, production nên dùng JWT)
-      const accessToken = this.generateAccessToken(user.id);
+      // 4. Generate access token
+      const accessToken = generateAccessToken(user.id, user.role);
 
       // 5. Return response
       return StatusBuilder.ok({
@@ -137,6 +140,7 @@ export class AuthUseCase {
           id: user.id,
           email: user.email,
           name: user.name,
+          role: user.role,
         },
       });
     } catch (error) {
@@ -146,11 +150,4 @@ export class AuthUseCase {
     }
   }
 
-  private generateAccessToken(userId: string): string {
-    // Simple token generation (production nên dùng JWT)
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 15);
-    return Buffer.from(`${userId}:${timestamp}:${random}`).toString("base64");
-  }
 }
-
