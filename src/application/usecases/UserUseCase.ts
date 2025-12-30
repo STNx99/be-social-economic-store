@@ -55,6 +55,7 @@ export class UserUseCase implements IUserUseCase {
         validatedInput.email,
         validatedInput.name,
         validatedInput.password,
+        validatedInput.role,
       );
 
       const savedUser = await this.userRepository.save(user);

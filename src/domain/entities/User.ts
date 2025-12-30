@@ -7,6 +7,7 @@ import {
   UpdateUserInput,
   User,
 } from "@/utils/schemas/user";
+import { UserRole } from "@/utils/schemas/common";
 
 /**
  * Domain entity representing a User.
@@ -16,6 +17,7 @@ export class UserEntity implements User {
   private emailValue: string;
   private nameValue: string;
   private passwordValue: string;
+  private roleValue: UserRole;
   private createdAtValue: Date;
   private updatedAtValue: Date;
 
@@ -24,6 +26,7 @@ export class UserEntity implements User {
     email: string,
     name: string,
     password: string,
+    role: UserRole = 'customer',
     createdAt: Date = new Date(),
     updatedAt: Date = new Date(),
   ) {
@@ -31,6 +34,7 @@ export class UserEntity implements User {
     this.emailValue = email;
     this.nameValue = name;
     this.passwordValue = password;
+    this.roleValue = role;
     this.createdAtValue = createdAt;
     this.updatedAtValue = updatedAt;
 
@@ -63,6 +67,10 @@ export class UserEntity implements User {
     return this.passwordValue;
   }
 
+  get role(): UserRole {
+    return this.roleValue;
+  }
+
   get createdAt(): Date {
     return this.createdAtValue;
   }
@@ -87,12 +95,18 @@ export class UserEntity implements User {
     this.updatedAtValue = new Date();
   }
 
+  set role(value: UserRole) {
+    this.roleValue = value;
+    this.updatedAtValue = new Date();
+  }
+
   static fromValidatedData(data: User): UserEntity {
     return new UserEntity(
       data.id,
       data.email,
       data.name,
       data.password,
+      data.role,
       data.createdAt,
       data.updatedAt,
     );
@@ -146,6 +160,7 @@ export class UserEntity implements User {
       email: this.email,
       name: this.name,
       password: this.password,
+      role: this.role,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

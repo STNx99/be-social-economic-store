@@ -1,45 +1,35 @@
 import { z } from "zod";
 import { UserSchema } from "../user";
-import { PasswordSchema } from "../common";
+import { EmailSchema, NameSchema, PasswordSchema, IDSchema } from "../common";
+import { createEndpointResponseSchema } from "../responses/common";
 
+/**
+ * Schema for creating a new user via API
+ */
 export const CreateUserRequestSchema = z.object({
-  email: z.string(),
-  name: z.string(),
+  email: EmailSchema,
+  name: NameSchema,
   password: PasswordSchema,
 });
 
-export const CreateUserResponseSchema = z.object({
-  success: z.boolean(),
-  data: UserSchema.optional(),
-  error: z.string().optional(),
-  details: z
-    .array(
-      z.object({
-        field: z.string(),
-        message: z.string(),
-      }),
-    )
-    .optional(),
-});
+/**
+ * Response schema for user creation
+ */
+export const CreateUserResponseSchema = createEndpointResponseSchema(UserSchema);
 
+/**
+ * Schema for getting a user by ID via API
+ */
 export const GetUserRequestSchema = z.object({
-  id: z.string(),
+  id: IDSchema,
 });
 
-export const GetUserResponseSchema = z.object({
-  success: z.boolean(),
-  data: UserSchema.optional(),
-  error: z.string().optional(),
-  details: z
-    .array(
-      z.object({
-        field: z.string(),
-        message: z.string(),
-      }),
-    )
-    .optional(),
-});
+/**
+ * Response schema for getting a user
+ */
+export const GetUserResponseSchema = createEndpointResponseSchema(UserSchema);
 
+// Type exports
 export type CreateUserRequest = z.infer<typeof CreateUserRequestSchema>;
 export type CreateUserResponse = z.infer<typeof CreateUserResponseSchema>;
 export type GetUserRequest = z.infer<typeof GetUserRequestSchema>;

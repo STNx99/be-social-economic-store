@@ -1,4 +1,15 @@
 export {
+  AuthLoginRequestSchema,
+  AuthLoginResponseSchema,
+  AuthRegisterRequestSchema,
+  AuthRegisterResponseSchema,
+  type AuthLoginRequest,
+  type AuthLoginResponse,
+  type AuthRegisterRequest,
+  type AuthRegisterResponse,
+} from "./auth";
+
+export {
   CreateUserRequestSchema,
   CreateUserResponseSchema,
   GetUserRequestSchema,

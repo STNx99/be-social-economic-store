@@ -4,11 +4,12 @@ import jwt, {
   TokenExpiredError,
   JsonWebTokenError,
 } from "jsonwebtoken";
-import { z } from "zod";
 import { AccessTokenPayloadSchema } from "./schemas/endpoints/auth";
+import { UserRole } from "./schemas/common";
 
 export interface DecodedAccessToken {
   userId: string;
+  role: UserRole;
   iat: number;
   exp?: number;
 }
@@ -17,9 +18,16 @@ export const DEFAULT_ACCESS_TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
-export function generateAccessToken(userId: string): string {
+/**
+ * Generate a JWT access token containing userId and role.
+ */
+export function generateAccessToken(userId: string, role: UserRole): string {
   const expiresInSeconds = Math.floor(DEFAULT_ACCESS_TOKEN_MAX_AGE_MS / 1000);
-  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: expiresInSeconds });
+  return jwt.sign(
+    { sub: userId, role }, 
+    JWT_SECRET, 
+    { expiresIn: expiresInSeconds }
+  );
 }
 
 /**
@@ -31,12 +39,15 @@ export function decodeAccessToken(token: string): DecodedAccessToken | null {
   try {
     const payload = jwt.decode(token) as JwtPayload | null;
     if (!payload || typeof payload === "string") return null;
-    const sub =
-      payload.sub ?? (payload as JwtPayload & { userId?: string }).userId;
+    
+    const sub = payload.sub ?? (payload as any).userId;
+    const role = payload.role as UserRole | undefined;
     const iat = payload.iat as number | undefined;
     const exp = payload.exp as number | undefined;
-    if (!sub || typeof iat !== "number") return null;
-    return { userId: String(sub), iat, exp };
+    
+    if (!sub || !role || typeof iat !== "number") return null;
+    
+    return { userId: String(sub), role, iat, exp };
   } catch {
     return null;
   }
@@ -72,11 +83,20 @@ export function verifyAccessToken(
       return { valid: false, reason: "Invalid token payload" };
     }
 
-    const { sub, userId, iat, exp } = parsed.data;
+    const { sub, userId, role, iat, exp } = parsed.data;
+
+    if (!role) {
+      return { valid: false, reason: "Token missing role information" };
+    }
 
     return {
       valid: true,
-      payload: { userId: sub ?? userId!, iat, exp },
+      payload: { 
+        userId: (sub ?? userId)!, 
+        role: role as UserRole,
+        iat, 
+        exp 
+      },
     };
   } catch (err) {
     if (err instanceof TokenExpiredError) {

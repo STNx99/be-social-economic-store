@@ -2,6 +2,7 @@ import {
   ProductEntity,
   DomainValidationError,
 } from "@/domain/entities/Product";
+import { ICategoryRepository } from "@/domain/repositories/ICategoryRepository";
 import { IProductRepository } from "@/domain/repositories/IProductRepository";
 import { S3Service } from "@/infrastructure/s3/s3Service";
 import { validateData, ValidationError, StatusBuilder } from "@/utils";
@@ -29,19 +30,31 @@ import {
 } from "@/utils/schemas/product";
 import { IProductUseCase } from "@/domain/usecases/IProductUseCase";
 
+const normalizeCategorySlug = (value: string): string =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+
 export class ProductUseCase implements IProductUseCase {
   constructor(
     private productRepository: IProductRepository,
     private s3Service: S3Service,
+    private categoryRepository: ICategoryRepository,
   ) {}
 
   async createProduct(
     request: CreateProductRequest,
+    sellerId: string,
   ): Promise<CreateProductResponse> {
     try {
       let validatedInput: CreateProductInput;
       try {
-        validatedInput = validateData(SanitizedProductInputSchema, request);
+        validatedInput = validateData(SanitizedProductInputSchema, {
+          ...request,
+          sellerId,
+        });
       } catch (error) {
         if (error instanceof ValidationError) {
           return StatusBuilder.fail("Validation failed", error.details);
@@ -57,16 +70,44 @@ export class ProductUseCase implements IProductUseCase {
         }
         throw error;
       }
+      if (validatedInput.category) {
+        const normalizedCategorySlug = normalizeCategorySlug(
+          validatedInput.category,
+        );
+        if (!normalizedCategorySlug) {
+          return StatusBuilder.fail("Validation failed", [
+            {
+              field: "category",
+              message: "Category slug must contain alphanumeric characters",
+            },
+          ]);
+        }
+
+        const referencedCategory = await this.categoryRepository.findBySlug(
+          normalizedCategorySlug,
+        );
+        if (!referencedCategory) {
+          return StatusBuilder.fail("Category not found", [
+            {
+              field: "category",
+              message: "No category exists with the provided slug",
+            },
+          ]);
+        }
+
+        validatedInput.category = normalizedCategorySlug;
+      }
 
       const product = new ProductEntity(
         crypto.randomUUID(),
+        validatedInput.sellerId,
         validatedInput.name,
         validatedInput.price,
         validatedInput.stock,
         validatedInput.images || [],
         validatedInput.description,
         validatedInput.category,
-        validatedInput.status || "active",
+        validatedInput.status || "pending",
       );
 
       const savedProduct = await this.productRepository.save(product.toJSON());
@@ -95,7 +136,11 @@ export class ProductUseCase implements IProductUseCase {
     }
   }
 
-  async getProduct(request: GetProductRequest): Promise<GetProductResponse> {
+  async getProduct(
+    request: GetProductRequest,
+    userId?: string,
+    role?: string,
+  ): Promise<GetProductResponse> {
     try {
       let validatedParams;
       try {
@@ -120,6 +165,20 @@ export class ProductUseCase implements IProductUseCase {
         ]);
       }
 
+      if (role !== "admin") {
+        const isOwner = userId && product.sellerId === userId;
+        const isActive = product.status === "active";
+
+        if (!isOwner && !isActive) {
+          return StatusBuilder.fail("Product not found", [
+            {
+              field: "id",
+              message: "No product exists with the provided ID",
+            },
+          ]);
+        }
+      }
+
       return StatusBuilder.ok(product);
     } catch (error) {
       return StatusBuilder.fail(
@@ -131,6 +190,7 @@ export class ProductUseCase implements IProductUseCase {
   async updateProduct(
     id: string,
     request: UpdateProductRequest,
+    userId: string,
   ): Promise<UpdateProductResponse> {
     try {
       let validatedParams;
@@ -156,6 +216,15 @@ export class ProductUseCase implements IProductUseCase {
         ]);
       }
 
+      if (existingProduct.sellerId !== userId) {
+        return StatusBuilder.fail("Forbidden: You do not own this product", [
+          {
+            field: "sellerId",
+            message: "Only the product owner can update it",
+          },
+        ]);
+      }
+
       let validatedUpdate: UpdateProductInput;
       try {
         validatedUpdate = validateData(
@@ -171,6 +240,33 @@ export class ProductUseCase implements IProductUseCase {
           return StatusBuilder.fail("Validation failed", error.details);
         }
         throw error;
+      }
+      if (validatedUpdate.category !== undefined) {
+        const normalizedCategorySlug = normalizeCategorySlug(
+          validatedUpdate.category,
+        );
+        if (!normalizedCategorySlug) {
+          return StatusBuilder.fail("Validation failed", [
+            {
+              field: "category",
+              message: "Category slug must contain alphanumeric characters",
+            },
+          ]);
+        }
+
+        const referencedCategory = await this.categoryRepository.findBySlug(
+          normalizedCategorySlug,
+        );
+        if (!referencedCategory) {
+          return StatusBuilder.fail("Category not found", [
+            {
+              field: "category",
+              message: "No category exists with the provided slug",
+            },
+          ]);
+        }
+
+        validatedUpdate.category = normalizedCategorySlug;
       }
 
       const updatedProduct = ProductEntity.fromValidatedData(existingProduct);
@@ -211,6 +307,7 @@ export class ProductUseCase implements IProductUseCase {
 
   async deleteProduct(
     request: DeleteProductRequest,
+    userId: string,
   ): Promise<DeleteProductResponse> {
     try {
       let validatedParams;
@@ -236,6 +333,15 @@ export class ProductUseCase implements IProductUseCase {
         ]);
       }
 
+      if (product.sellerId !== userId) {
+        return StatusBuilder.fail("Forbidden: You do not own this product", [
+          {
+            field: "sellerId",
+            message: "Only the product owner can delete it",
+          },
+        ]);
+      }
+
       const deleted = await this.productRepository.delete(validatedParams.id);
 
       if (!deleted) {
@@ -252,6 +358,8 @@ export class ProductUseCase implements IProductUseCase {
 
   async listProducts(
     request: ListProductsRequest,
+    userId?: string,
+    role?: string,
   ): Promise<ListProductsResponse> {
     try {
       const page = request.page || 1;
@@ -272,8 +380,17 @@ export class ProductUseCase implements IProductUseCase {
         products = await this.productRepository.findAll();
       }
 
-      const total = products.length;
-      const paginatedProducts = products.slice(skip, skip + limit);
+      let filteredProducts = products;
+      if (role !== "admin") {
+        filteredProducts = products.filter((p) => {
+          if (p.status === "active") return true;
+          if (userId && p.sellerId === userId) return true;
+          return false;
+        });
+      }
+
+      const total = filteredProducts.length;
+      const paginatedProducts = filteredProducts.slice(skip, skip + limit);
       const totalPages = Math.ceil(total / limit);
 
       return StatusBuilder.paginated(paginatedProducts, {
@@ -300,6 +417,49 @@ export class ProductUseCase implements IProductUseCase {
       });
 
       return StatusBuilder.ok(result);
+    } catch (error) {
+      return StatusBuilder.fail(
+        error instanceof Error ? error.message : "Unknown error occurred",
+      );
+    }
+  }
+
+  async approveProduct(
+    id: string,
+    status: "active" | "rejected",
+  ): Promise<UpdateProductResponse> {
+    try {
+      let validatedParams;
+      try {
+        validatedParams = validateData(ProductIdParamSchema, { id });
+      } catch (error) {
+        if (error instanceof ValidationError) {
+          return StatusBuilder.fail("Invalid product ID", error.details);
+        }
+        throw error;
+      }
+
+      const existingProduct = await this.productRepository.findById(
+        validatedParams.id,
+      );
+
+      if (!existingProduct) {
+        return StatusBuilder.fail("Product not found", [
+          {
+            field: "id",
+            message: "No product exists with the provided ID",
+          },
+        ]);
+      }
+
+      const updatedProduct = ProductEntity.fromValidatedData(existingProduct);
+      updatedProduct.status = status;
+
+      const savedProduct = await this.productRepository.save(
+        updatedProduct.toJSON(),
+      );
+
+      return StatusBuilder.ok(savedProduct);
     } catch (error) {
       return StatusBuilder.fail(
         error instanceof Error ? error.message : "Unknown error occurred",
