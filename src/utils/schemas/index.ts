@@ -7,3 +7,6 @@ export * from './category';
 export * from './cart';
 export * from './api';
 export * from './business';
+export * from './order';
+export * from './payment';
+export * from './shipment';

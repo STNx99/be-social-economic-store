@@ -64,9 +64,6 @@ export const ProductInputSchema = z.object({
   status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected', 'archived', 'draft']).optional().default('pending')
 });
 
-/**
- * Sanitized product input schema with data transformation
- */
 export const SanitizedProductInputSchema = ProductInputSchema.transform((data) => ({
   sellerId: data.sellerId.trim(),
   name: data.name.trim(),
@@ -83,7 +80,6 @@ export const SanitizedProductInputSchema = ProductInputSchema.transform((data) =
  */
 export const ProductIdParamSchema = createIdParamSchema();
 
-// Type exports
 export type Product = z.infer<typeof ProductSchema>;
 export type CreateProductInput = z.infer<typeof CreateProductSchema>;
 export type UpdateProductInput = z.infer<typeof UpdateProductSchema>;

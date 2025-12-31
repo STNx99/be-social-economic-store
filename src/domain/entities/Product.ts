@@ -7,13 +7,6 @@ import {
 } from "@/utils/schemas/product";
 import { ProductStatus } from "@/utils/schemas/endpoints/products";
 
-/**
- * Domain entity representing a Product.
- *
- * Notes on naming:
- * - Private internal fields are named without leading underscores (e.g. `idValue`)
- *   to avoid collision with getters/setters that expose the `id`, `name`, etc.
- */
 export class ProductEntity implements Product {
   private idValue: string;
   private sellerIdValue: string;
@@ -36,7 +29,7 @@ export class ProductEntity implements Product {
     images: string[] = [],
     description?: string,
     category?: string,
-    status: ProductStatus = "active",
+    status: ProductStatus = "pending",
     createdAt?: Date,
     updatedAt?: Date,
   ) {
@@ -53,7 +46,6 @@ export class ProductEntity implements Product {
     this.updatedAtValue = updatedAt ?? new Date();
   }
 
-  // Getters (expose read-only properties)
   get id(): string {
     return this.idValue;
   }
@@ -133,17 +125,20 @@ export class ProductEntity implements Product {
     this.updatedAtValue = new Date();
   }
 
-
   isInStock(): boolean {
-    return this.stock > 0 && this.status === "active";
+    return this.stockValue > 0 && this.statusValue === "active";
   }
 
   isLowStock(threshold: number = 10): boolean {
-    return this.stock > 0 && this.stock <= threshold;
+    return this.stockValue > 0 && this.stockValue <= threshold;
   }
 
   canBeDeleted(): boolean {
-    return this.status === "inactive" || this.stock === 0;
+    return (
+      this.statusValue === "inactive" ||
+      this.statusValue === "archived" ||
+      this.stockValue === 0
+    );
   }
 
   toJSON(): Product {
@@ -178,16 +173,16 @@ export class ProductEntity implements Product {
     );
   }
 
-  // Domain validation helpers (throw DomainValidationError when invalid)
   static validateCreation(data: CreateProductInput): void {
     const result = CreateProductSchema.safeParse(data);
     if (!result.success) {
       throw new DomainValidationError(
         "Invalid product creation data",
         result.error.issues.map((err) => ({
-          field: Array.isArray(err.path) && err.path.length > 0
-            ? err.path.join(".")
-            : "value",
+          field:
+            Array.isArray(err.path) && err.path.length > 0
+              ? err.path.join(".")
+              : "value",
           message: err.message,
         })),
       );
@@ -200,9 +195,10 @@ export class ProductEntity implements Product {
       throw new DomainValidationError(
         "Invalid product update data",
         result.error.issues.map((err) => ({
-          field: Array.isArray(err.path) && err.path.length > 0
-            ? err.path.join(".")
-            : "value",
+          field:
+            Array.isArray(err.path) && err.path.length > 0
+              ? err.path.join(".")
+              : "value",
           message: err.message,
         })),
       );

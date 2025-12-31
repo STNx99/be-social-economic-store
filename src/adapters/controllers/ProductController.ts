@@ -1,6 +1,4 @@
 import { Context } from "hono";
-
-
 import {
   CreateProductRequest,
   UpdateProductRequest,
@@ -17,26 +15,24 @@ export class ProductController {
 
   async createProduct(c: Context) {
     try {
-      const userId = c.get("userId");
+      const userId = c.get("userId") as string;
       if (!userId) {
         return c.json(StatusBuilder.fail("Unauthorized: User ID not found"), 401);
       }
 
-      const body = await c.req.json();
-      const response = await this.productUseCase.createProduct(
-        body as CreateProductRequest,
-        userId,
-      );
+      const body = (await c.req.json()) as CreateProductRequest;
+      const response = await this.productUseCase.createProduct(body, userId);
 
       if (response.success) {
         return c.json(response, 201);
       } else {
         return c.json(response, 400);
       }
-    } catch (error) {
-      console.error(error);
+    } catch (error: unknown) {
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "error"),
+        StatusBuilder.fail(
+          error instanceof Error ? error.message : "Internal Server Error",
+        ),
         500,
       );
     }
@@ -44,8 +40,8 @@ export class ProductController {
 
   async getProduct(c: Context) {
     try {
-      const userId = c.get("userId");
-      const role = c.get("role");
+      const userId = c.get("userId") as string | undefined;
+      const role = c.get("role") as string | undefined;
       const id = c.req.param("id");
       const response = await this.productUseCase.getProduct(
         { id },
@@ -58,10 +54,12 @@ export class ProductController {
       } else {
         return c.json(response, 404);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "error"),
+        StatusBuilder.fail(
+          error instanceof Error ? error.message : "Internal Server Error",
+        ),
         500,
       );
     }
@@ -69,29 +67,25 @@ export class ProductController {
 
   async updateProduct(c: Context) {
     try {
-      const userId = c.get("userId");
+      const userId = c.get("userId") as string;
       if (!userId) {
         return c.json(StatusBuilder.fail("Unauthorized: User ID not found"), 401);
       }
 
       const id = c.req.param("id");
-      const body = await c.req.json();
-      const response = await this.productUseCase.updateProduct(
-        id,
-        body as UpdateProductRequest,
-        userId,
-      );
+      const body = (await c.req.json()) as UpdateProductRequest;
+      const response = await this.productUseCase.updateProduct(id, body, userId);
 
       if (response.success) {
         return c.json(response, 200);
       } else {
         return c.json(response, 400);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
       return c.json(
         StatusBuilder.fail(
-          error instanceof Error ? error.message : "rồi luôn server căng cọt",
+          error instanceof Error ? error.message : "Internal Server Error",
         ),
         500,
       );
@@ -100,7 +94,7 @@ export class ProductController {
 
   async deleteProduct(c: Context) {
     try {
-      const userId = c.get("userId");
+      const userId = c.get("userId") as string;
       if (!userId) {
         return c.json(StatusBuilder.fail("Unauthorized: User ID not found"), 401);
       }
@@ -113,10 +107,12 @@ export class ProductController {
       } else {
         return c.json(response, 404);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "gg"),
+        StatusBuilder.fail(
+          error instanceof Error ? error.message : "Internal Server Error",
+        ),
         500,
       );
     }
@@ -124,8 +120,8 @@ export class ProductController {
 
   async listProducts(c: Context) {
     try {
-      const userId = c.get("userId");
-      const role = c.get("role");
+      const userId = c.get("userId") as string | undefined;
+      const role = c.get("role") as string | undefined;
       const query = c.req.query();
       const request: ListProductsRequest = {
         page: query.page ? parseInt(query.page) : 1,
@@ -146,9 +142,11 @@ export class ProductController {
       } else {
         return c.json(response, 400);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "gg"),
+        StatusBuilder.fail(
+          error instanceof Error ? error.message : "Internal Server Error",
+        ),
         500,
       );
     }
@@ -156,20 +154,20 @@ export class ProductController {
 
   async generatePresignedUrl(c: Context) {
     try {
-      const body = await c.req.json();
-      const request = body as GeneratePresignedUrlRequest;
-
-      const response = await this.productUseCase.generatePresignedUrl(request);
+      const body = (await c.req.json()) as GeneratePresignedUrlRequest;
+      const response = await this.productUseCase.generatePresignedUrl(body);
 
       if (response.success) {
         return c.json(response, 200);
       } else {
         return c.json(response, 400);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "gg"),
+        StatusBuilder.fail(
+          error instanceof Error ? error.message : "Internal Server Error",
+        ),
         500,
       );
     }
@@ -195,10 +193,12 @@ export class ProductController {
       } else {
         return c.json(response, 400);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
       return c.json(
-        StatusBuilder.fail(error instanceof Error ? error.message : "gg"),
+        StatusBuilder.fail(
+          error instanceof Error ? error.message : "Internal Server Error",
+        ),
         500,
       );
     }

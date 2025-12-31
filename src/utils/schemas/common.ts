@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 
-export const IDSchema = z.uuid('Invalid ID format');
+export const IDSchema = z.string().uuid('Invalid ID format');
 export const OptionalIDSchema = IDSchema.optional();
 
 
@@ -47,10 +47,10 @@ export const NameSchema = z.string()
 export const UserRoleSchema = z.enum(['admin', 'customer', 'seller']).default('customer');
 
 
-export const UUIDSchema = z.uuid('Invalid UUID format');
+export const UUIDSchema = z.string().uuid('Invalid UUID format');
 
 
-export const URLSchema = z.url('Invalid URL format');
+export const URLSchema = z.string().url('Invalid URL format');
 
 
 export const PositiveNumberSchema = z.number().positive('Must be a positive number');

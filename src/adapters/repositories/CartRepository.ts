@@ -17,13 +17,13 @@ export class CartRepository implements ICartRepository {
   private userIdIndex?: string;
 
   constructor() {
-    this.cartTableName = process.env.DYNAMODB_TABLE_CART ?? "Cart";
-    this.productTableName = process.env.DYNAMODB_TABLE_PRODUCTS ?? "Product";
+    this.cartTableName = process.env.DYNAMODB_TABLE_CARTS ?? process.env.DYNAMODB_TABLE_CART ?? "Cart";
+    this.productTableName = process.env.DYNAMODB_TABLE_PRODUCTS ?? process.env.DYNAMODB_TABLE_PRODUCT ?? "Product";
     this.userIdIndex = process.env.DYNAMODB_CART_USER_ID_INDEX;
 
-    if (!process.env.DYNAMODB_TABLE_CART) {
+    if (!process.env.DYNAMODB_TABLE_CARTS && !process.env.DYNAMODB_TABLE_CART) {
       console.warn(
-        '[DynamoCartRepository] DYNAMODB_TABLE_CART not set, defaulting to "Cart".',
+        `[DynamoCartRepository] DYNAMODB_TABLE_CARTS not set, defaulting to "${this.cartTableName}".`,
       );
     }
   }
@@ -58,7 +58,6 @@ export class CartRepository implements ICartRepository {
       TableName: this.cartTableName,
       FilterExpression: "userId = :userId",
       ExpressionAttributeValues: { ":userId": userId },
-      Limit: 1,
     });
 
     const scanRes = (await dynamoDBDocumentClient.send(scanCmd)) as DynamoDBResult;

@@ -119,7 +119,6 @@ export class ProductUseCase implements IProductUseCase {
       }
 
       const err = error as { message?: string; name?: string };
-      // Check for DynamoDB errors
       if (
         err?.message?.includes("does not exist") ||
         err?.name === "ResourceNotFoundException"

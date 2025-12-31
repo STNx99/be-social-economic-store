@@ -1,9 +1,7 @@
-import {
-  CartEntity,
-} from "@/domain/entities/Cart";
 import { ICartRepository } from "@/domain/repositories/ICartRepository";
 import { IProductRepository } from "@/domain/repositories/IProductRepository";
-import { validateData, ValidationError, StatusBuilder } from "@/utils";
+import { ICartUseCase } from "@/domain/usecases/ICartUseCase";
+import { StatusBuilder } from "@/utils";
 import {
   AddToCartRequest,
   AddToCartResponse,
