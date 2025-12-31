@@ -1,7 +1,8 @@
 import { ICartRepository } from "@/domain/repositories/ICartRepository";
 import { IProductRepository } from "@/domain/repositories/IProductRepository";
 import { ICartUseCase } from "@/domain/usecases/ICartUseCase";
-import { StatusBuilder } from "@/utils";
+import { CartEntity } from "@/domain/entities/Cart";
+import { validateData, ValidationError, StatusBuilder } from "@/utils";
 import {
   AddToCartRequest,
   AddToCartResponse,
@@ -14,7 +15,14 @@ import {
   ClearCartRequest,
   ClearCartResponse,
 } from "@/utils/schemas/endpoints/cart";
-import { Cart } from "@/utils/schemas/cart";
+import {
+  AddToCartRequestSchema,
+  GetCartRequestSchema,
+  UpdateCartItemRequestSchema,
+  RemoveFromCartRequestSchema,
+  ClearCartRequestSchema,
+} from "@/utils/schemas/endpoints/cart";
+import { CartRepository } from "@/adapters/repositories/CartRepository";
 
 export class CartUseCase implements ICartUseCase {
   constructor(
@@ -22,59 +30,108 @@ export class CartUseCase implements ICartUseCase {
     private productRepository: IProductRepository,
   ) {}
 
-  async addToCart(request: AddToCartRequest, userId: string): Promise<AddToCartResponse> {
+  async addToCart(
+    request: AddToCartRequest,
+    userId: string,
+  ): Promise<AddToCartResponse> {
     try {
-      const product = await this.productRepository.findById(request.productId);
-      if (!product) {
-        return StatusBuilder.fail("Product not found");
+      let validatedRequest;
+      try {
+        validatedRequest = validateData(AddToCartRequestSchema, request);
+      } catch (error: unknown) {
+        if (error instanceof ValidationError) {
+          return StatusBuilder.fail("Validation failed", error.details);
+        }
+        throw error;
       }
 
-      if (product.stock < request.quantity) {
-        return StatusBuilder.fail("Insufficient stock");
+      const product = await this.productRepository.findById(validatedRequest.productId);
+      if (!product) {
+        return StatusBuilder.fail("Product not found", [
+          {
+            field: "productId",
+            message: "Product does not exist",
+          },
+        ]);
+      }
+
+      if (product.stock < validatedRequest.quantity) {
+        return StatusBuilder.fail("Insufficient stock", [
+          {
+            field: "quantity",
+            message: `Not enough stock. Available: ${product.stock}`,
+          },
+        ]);
+      }
+
+      if (product.status !== "active") {
+        return StatusBuilder.fail("Product is not available", [
+          {
+            field: "productId",
+            message: "Product is inactive or unavailable",
+          },
+        ]);
       }
 
       let cart = await this.cartRepository.findByUserId(userId);
+      
       if (!cart) {
-        cart = {
-          id: crypto.randomUUID(),
+        const newCart = new CartEntity(
+          crypto.randomUUID(),
           userId,
-          items: [],
-          total: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
+          [],
+          0,
+        );
+        cart = newCart.toJSON();
       }
 
-      const existingItemIndex = cart.items.findIndex(
-        (item) => item.productId === request.productId,
-      );
+      const cartEntity = CartEntity.fromValidatedData(cart);
 
-      if (existingItemIndex > -1) {
-        cart.items[existingItemIndex].quantity += request.quantity;
+      const cartItem = {
+        productId: product.id,
+        quantity: validatedRequest.quantity,
+        price: product.price,
+        name: product.name,
+      };
+
+      cartEntity.addItem(cartItem);
+      const updatedCart = cartEntity.toJSON();
+
+      const cartRepo = this.cartRepository as CartRepository;
+      if ('addToCartWithInventoryUpdate' in cartRepo) {
+        await cartRepo.addToCartWithInventoryUpdate(
+          updatedCart,
+          validatedRequest.productId,
+          validatedRequest.quantity,
+        );
       } else {
-        cart.items.push({
-          productId: product.id,
-          name: product.name,
-          price: product.price,
-          quantity: request.quantity,
-          image: product.images[0],
-        });
+        await this.cartRepository.save(updatedCart);
+        await this.cartRepository.updateProductStock(
+          validatedRequest.productId,
+          validatedRequest.quantity,
+        );
       }
 
-      cart.total = cart.items.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0,
-      );
-      cart.updatedAt = new Date();
+      const savedCart = await this.cartRepository.findByUserId(userId);
+      return StatusBuilder.ok(savedCart!);
+    } catch (error: unknown) {
+      const err = error as { name?: string; message?: string };
+      
+      if (err?.name === "TransactionCanceledException" || err?.message?.includes("ConditionalCheckFailedException")) {
+        return StatusBuilder.fail("Insufficient stock or product not found", [
+          {
+            field: "quantity",
+            message: "Cannot add to cart. Please re-check available stock.",
+          },
+        ]);
+      }
 
-      const savedCart = await this.cartRepository.addToCartWithInventoryUpdate(
-        cart,
-        product.id,
-        request.quantity,
-      );
+      if (err?.message?.includes("does not exist")) {
+        return StatusBuilder.fail(
+          "DynamoDB table does not exist. Please create the Cart and Product tables first.",
+        );
+      }
 
-      return StatusBuilder.ok(savedCart);
-    } catch (error) {
       return StatusBuilder.fail(
         error instanceof Error ? error.message : "Unknown error occurred",
       );
@@ -83,18 +140,28 @@ export class CartUseCase implements ICartUseCase {
 
   async getCart(request: GetCartRequest): Promise<GetCartResponse> {
     try {
-      let cart = await this.cartRepository.findByUserId(request.userId);
-      if (!cart) {
-        cart = {
-          id: crypto.randomUUID(),
-          userId: request.userId,
-          items: [],
-          total: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        await this.cartRepository.save(cart);
+      let validatedRequest;
+      try {
+        validatedRequest = validateData(GetCartRequestSchema, request);
+      } catch (error: unknown) {
+        if (error instanceof ValidationError) {
+          return StatusBuilder.fail("Validation failed", error.details);
+        }
+        throw error;
       }
+
+      const cart = await this.cartRepository.findByUserId(validatedRequest.userId);
+
+      if (!cart) {
+        const emptyCart = new CartEntity(
+          crypto.randomUUID(),
+          validatedRequest.userId,
+          [],
+          0,
+        );
+        return StatusBuilder.ok(emptyCart.toJSON());
+      }
+
       return StatusBuilder.ok(cart);
     } catch (error) {
       return StatusBuilder.fail(
@@ -108,43 +175,88 @@ export class CartUseCase implements ICartUseCase {
     userId: string,
   ): Promise<UpdateCartItemResponse> {
     try {
+      let validatedRequest;
+      try {
+        validatedRequest = validateData(UpdateCartItemRequestSchema, request);
+      } catch (error: unknown) {
+        if (error instanceof ValidationError) {
+          return StatusBuilder.fail("Validation failed", error.details);
+        }
+        throw error;
+      }
+
       const cart = await this.cartRepository.findByUserId(userId);
       if (!cart) {
-        return StatusBuilder.fail("Cart not found");
+        return StatusBuilder.fail("Cart not found", [
+          {
+            field: "userId",
+            message: "Cart does not exist",
+          },
+        ]);
       }
 
-      const itemIndex = cart.items.findIndex(
-        (item) => item.productId === request.productId,
-      );
-
-      if (itemIndex === -1) {
-        return StatusBuilder.fail("Item not found in cart");
+      const cartItem = cart.items.find((item) => item.productId === validatedRequest.productId);
+      if (!cartItem) {
+        return StatusBuilder.fail("Item not found in cart", [
+          {
+            field: "productId",
+            message: "Product is not in the cart",
+          },
+        ]);
       }
 
-      const product = await this.productRepository.findById(request.productId);
+      const product = await this.productRepository.findById(validatedRequest.productId);
       if (!product) {
-        return StatusBuilder.fail("Product not found");
+        return StatusBuilder.fail("Product not found", [
+          {
+            field: "productId",
+            message: "Product does not exist",
+          },
+        ]);
       }
 
-      const quantityDiff = request.quantity - cart.items[itemIndex].quantity;
-      if (quantityDiff > 0 && product.stock < quantityDiff) {
-        return StatusBuilder.fail("Insufficient stock");
+      if (product.status !== "active") {
+        return StatusBuilder.fail("Product is not available", [
+          {
+            field: "productId",
+            message: "Product is inactive or unavailable",
+          },
+        ]);
       }
 
-      cart.items[itemIndex].quantity = request.quantity;
-      cart.total = cart.items.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0,
-      );
-      cart.updatedAt = new Date();
-
-      // Note: This should ideally be a transaction too if we want to update stock
-      const savedCart = await this.cartRepository.save(cart);
-      if (quantityDiff !== 0) {
-        await this.cartRepository.updateProductStock(product.id, quantityDiff);
+      const quantityDifference = validatedRequest.quantity - cartItem.quantity;
+      if (quantityDifference > 0 && product.stock < quantityDifference) {
+        return StatusBuilder.fail("Insufficient stock", [
+          {
+            field: "quantity",
+            message: `Not enough stock. Available: ${product.stock}`,
+          },
+        ]);
       }
 
-      return StatusBuilder.ok(savedCart);
+      if (validatedRequest.quantity <= 0) {
+        return StatusBuilder.fail("Invalid quantity", [
+          {
+            field: "quantity",
+            message: "Quantity must be greater than 0",
+          },
+        ]);
+      }
+
+      const cartEntity = CartEntity.fromValidatedData(cart);
+      cartEntity.updateItemQuantity(validatedRequest.productId, validatedRequest.quantity);
+      const updatedCart = cartEntity.toJSON();
+
+      if (quantityDifference !== 0) {
+        await this.cartRepository.updateProductStock(
+          validatedRequest.productId,
+          quantityDifference, 
+        );
+      }
+
+      await this.cartRepository.save(updatedCart);
+      const savedCart = await this.cartRepository.findByUserId(userId);
+      return StatusBuilder.ok(savedCart!);
     } catch (error) {
       return StatusBuilder.fail(
         error instanceof Error ? error.message : "Unknown error occurred",
@@ -157,32 +269,48 @@ export class CartUseCase implements ICartUseCase {
     userId: string,
   ): Promise<RemoveFromCartResponse> {
     try {
+      let validatedRequest;
+      try {
+        validatedRequest = validateData(RemoveFromCartRequestSchema, request);
+      } catch (error: unknown) {
+        if (error instanceof ValidationError) {
+          return StatusBuilder.fail("Validation failed", error.details);
+        }
+        throw error;
+      }
+
       const cart = await this.cartRepository.findByUserId(userId);
       if (!cart) {
-        return StatusBuilder.fail("Cart not found");
+        return StatusBuilder.fail("Cart not found", [
+          {
+            field: "userId",
+            message: "Cart does not exist",
+          },
+        ]);
       }
 
-      const itemIndex = cart.items.findIndex(
-        (item) => item.productId === request.productId,
-      );
-
-      if (itemIndex === -1) {
-        return StatusBuilder.fail("Item not found in cart");
+      const cartItem = cart.items.find((item) => item.productId === validatedRequest.productId);
+      if (!cartItem) {
+        return StatusBuilder.fail("Item not found in cart", [
+          {
+            field: "productId",
+            message: "Product is not in the cart",
+          },
+        ]);
       }
 
-      const removedItem = cart.items[itemIndex];
-      cart.items.splice(itemIndex, 1);
-      cart.total = cart.items.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0,
+      const cartEntity = CartEntity.fromValidatedData(cart);
+      cartEntity.removeItem(validatedRequest.productId);
+      const updatedCart = cartEntity.toJSON();
+
+      await this.cartRepository.updateProductStock(
+        validatedRequest.productId,
+        -cartItem.quantity,
       );
-      cart.updatedAt = new Date();
 
-      const savedCart = await this.cartRepository.save(cart);
-      // Return stock to inventory
-      await this.cartRepository.updateProductStock(removedItem.productId, -removedItem.quantity);
-
-      return StatusBuilder.ok(savedCart);
+      await this.cartRepository.save(updatedCart);
+      const savedCart = await this.cartRepository.findByUserId(userId);
+      return StatusBuilder.ok(savedCart!);
     } catch (error) {
       return StatusBuilder.fail(
         error instanceof Error ? error.message : "Unknown error occurred",
@@ -192,20 +320,36 @@ export class CartUseCase implements ICartUseCase {
 
   async clearCart(request: ClearCartRequest): Promise<ClearCartResponse> {
     try {
-      const cart = await this.cartRepository.findByUserId(request.userId);
+      let validatedRequest;
+      try {
+        validatedRequest = validateData(ClearCartRequestSchema, request);
+      } catch (error: unknown) {
+        if (error instanceof ValidationError) {
+          return StatusBuilder.fail("Validation failed", error.details);
+        }
+        throw error;
+      }
+
+      const cart = await this.cartRepository.findByUserId(validatedRequest.userId);
       if (!cart) {
-        return StatusBuilder.ok(undefined);
+        return StatusBuilder.fail("Cart not found", [
+          {
+            field: "userId",
+            message: "Cart does not exist",
+          },
+        ]);
       }
 
-      // Return all items to stock
       for (const item of cart.items) {
-        await this.cartRepository.updateProductStock(item.productId, -item.quantity);
+        await this.cartRepository.updateProductStock(
+          item.productId,
+          -item.quantity,
+        );
       }
 
-      cart.items = [];
-      cart.total = 0;
-      cart.updatedAt = new Date();
-      await this.cartRepository.save(cart);
+      const cartEntity = CartEntity.fromValidatedData(cart);
+      cartEntity.clear();
+      await this.cartRepository.save(cartEntity.toJSON());
 
       return StatusBuilder.ok(undefined);
     } catch (error) {
@@ -215,3 +359,4 @@ export class CartUseCase implements ICartUseCase {
     }
   }
 }
+
