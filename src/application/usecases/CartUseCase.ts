@@ -1,7 +1,8 @@
 import { ICartRepository } from "@/domain/repositories/ICartRepository";
 import { IProductRepository } from "@/domain/repositories/IProductRepository";
 import { ICartUseCase } from "@/domain/usecases/ICartUseCase";
-import { StatusBuilder } from "@/utils";
+import { CartEntity } from "@/domain/entities/Cart";
+import { validateData, ValidationError, StatusBuilder } from "@/utils";
 import {
   AddToCartRequest,
   AddToCartResponse,
@@ -21,7 +22,6 @@ import {
   RemoveFromCartRequestSchema,
   ClearCartRequestSchema,
 } from "@/utils/schemas/endpoints/cart";
-import { ICartUseCase } from "@/domain/usecases/ICartUseCase";
 import { CartRepository } from "@/adapters/repositories/CartRepository";
 
 export class CartUseCase implements ICartUseCase {
@@ -38,7 +38,7 @@ export class CartUseCase implements ICartUseCase {
       let validatedRequest;
       try {
         validatedRequest = validateData(AddToCartRequestSchema, request);
-      } catch (error) {
+      } catch (error: unknown) {
         if (error instanceof ValidationError) {
           return StatusBuilder.fail("Validation failed", error.details);
         }
@@ -143,7 +143,7 @@ export class CartUseCase implements ICartUseCase {
       let validatedRequest;
       try {
         validatedRequest = validateData(GetCartRequestSchema, request);
-      } catch (error) {
+      } catch (error: unknown) {
         if (error instanceof ValidationError) {
           return StatusBuilder.fail("Validation failed", error.details);
         }
@@ -178,7 +178,7 @@ export class CartUseCase implements ICartUseCase {
       let validatedRequest;
       try {
         validatedRequest = validateData(UpdateCartItemRequestSchema, request);
-      } catch (error) {
+      } catch (error: unknown) {
         if (error instanceof ValidationError) {
           return StatusBuilder.fail("Validation failed", error.details);
         }
@@ -272,7 +272,7 @@ export class CartUseCase implements ICartUseCase {
       let validatedRequest;
       try {
         validatedRequest = validateData(RemoveFromCartRequestSchema, request);
-      } catch (error) {
+      } catch (error: unknown) {
         if (error instanceof ValidationError) {
           return StatusBuilder.fail("Validation failed", error.details);
         }
@@ -323,7 +323,7 @@ export class CartUseCase implements ICartUseCase {
       let validatedRequest;
       try {
         validatedRequest = validateData(ClearCartRequestSchema, request);
-      } catch (error) {
+      } catch (error: unknown) {
         if (error instanceof ValidationError) {
           return StatusBuilder.fail("Validation failed", error.details);
         }
