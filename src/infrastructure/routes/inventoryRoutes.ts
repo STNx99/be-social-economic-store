@@ -16,29 +16,13 @@ export class InventoryRoutes {
     this.app.use("/api/inventory", requireAuth());
     this.app.use("/api/inventory/*", requireAuth());
 
-    // Placeholder routes - sẽ implement sau
-    this.app.get("/api/inventory", (c) => {
-      return c.json({ success: true, message: "Inventory endpoint" }, 200);
-    });
+    const inventoryController = this.container.getInventoryController();
 
-    this.app.get("/api/inventory/:id", (c) => {
-      const id = c.req.param("id");
-      return c.json({ success: true, message: `Get inventory ${id}` }, 200);
-    });
-
-    this.app.post("/api/inventory", (c) => {
-      return c.json({ success: true, message: "Create inventory" }, 201);
-    });
-
-    this.app.put("/api/inventory/:id", (c) => {
-      const id = c.req.param("id");
-      return c.json({ success: true, message: `Update inventory ${id}` }, 200);
-    });
-
-    this.app.delete("/api/inventory/:id", (c) => {
-      const id = c.req.param("id");
-      return c.json({ success: true, message: `Delete inventory ${id}` }, 200);
-    });
+    this.app.get("/api/inventory", (c) => inventoryController.listInventories(c));
+    this.app.get("/api/inventory/:id", (c) => inventoryController.getInventory(c));
+    this.app.post("/api/inventory", (c) => inventoryController.createInventory(c));
+    this.app.put("/api/inventory/:id", (c) => inventoryController.updateInventory(c));
+    this.app.delete("/api/inventory/:id", (c) => inventoryController.deleteInventory(c));
   }
 }
 

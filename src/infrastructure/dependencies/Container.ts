@@ -41,6 +41,11 @@ import { IOrderUseCase } from "@/domain/usecases/IOrderUseCase";
 import { IPaymentUseCase } from "@/domain/usecases/IPaymentUseCase";
 import { IShipmentUseCase } from "@/domain/usecases/IShipmentUseCase";
 import { ICartUseCase } from "@/domain/usecases/ICartUseCase";
+import { IInventoryRepository } from "@/domain/repositories/IInventoryRepository";
+import { IInventoryUseCase } from "@/domain/usecases/IInventoryUseCase";
+import { InventoryRepository } from "@/adapters/repositories/InventoryRepository";
+import { InventoryUseCase } from "@/application/usecases/InventoryUseCase";
+import { InventoryController } from "@/adapters/controllers/InventoryController";
 
 export class Container {
   private static instance: Container;
@@ -51,6 +56,7 @@ export class Container {
   private paymentRepository: IPaymentRepository;
   private shipmentRepository: IShipmentRepository;
   private cartRepository: ICartRepository;
+  private inventoryRepository: IInventoryRepository;
   private wsRepository: IWsRepository;
   private userUseCase: IUserUseCase;
   private authUseCase: IAuthUseCase;
@@ -61,6 +67,7 @@ export class Container {
   private paymentUseCase: IPaymentUseCase;
   private shipmentUseCase: IShipmentUseCase;
   private cartUseCase: ICartUseCase;
+  private inventoryUseCase: IInventoryUseCase;
   private userController: UserController;
   private authController: AuthController;
   private productController: ProductController;
@@ -69,6 +76,7 @@ export class Container {
   private paymentController: PaymentController;
   private shipmentController: ShipmentController;
   private cartController: CartController;
+  private inventoryController: InventoryController;
   private s3Service: S3Service;
 
   private constructor() {
@@ -79,6 +87,7 @@ export class Container {
     this.paymentRepository = new MockPaymentRepository();
     this.shipmentRepository = new MockShipmentRepository();
     this.cartRepository = new CartRepository();
+    this.inventoryRepository = new InventoryRepository();
     this.wsRepository = new WsRepository();
     this.s3Service = new S3Service();
 
@@ -100,6 +109,7 @@ export class Container {
       this.cartRepository,
       this.productRepository,
     );
+    this.inventoryUseCase = new InventoryUseCase(this.inventoryRepository);
 
     this.userController = new UserController(this.userUseCase);
     this.authController = new AuthController(this.authUseCase);
@@ -109,6 +119,7 @@ export class Container {
     this.paymentController = new PaymentController(this.paymentUseCase);
     this.shipmentController = new ShipmentController(this.shipmentUseCase);
     this.cartController = new CartController(this.cartUseCase);
+    this.inventoryController = new InventoryController(this.inventoryUseCase);
   }
 
   static getInstance(): Container {
@@ -164,5 +175,9 @@ export class Container {
 
   getCartController(): CartController {
     return this.cartController;
+  }
+
+  getInventoryController(): InventoryController {
+    return this.inventoryController;
   }
 }
