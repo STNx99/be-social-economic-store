@@ -1,17 +1,25 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const REGION = process.env.AWS_REGION ?? "us-east-1";
+const REGION = process.env.AWS_REGION ?? "ap-southeast-1";
 const BUCKET_NAME = process.env.S3_BUCKET_NAME;
 
+/**
+ * S3 Client configuration.
+ * We explicitly provide credentials to ensure the SDK uses the correct identity.
+ */
 export const s3Client = new S3Client({
   region: REGION,
+  credentials: process.env.AWS_ACCESS_KEY_ID ? {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
+  } : undefined,
 });
 
 export interface PresignedUrlOptions {
   fileName: string;
   contentType: string;
-  expiresIn?: number; 
+  expiresIn?: number;
   folder?: string;
 }
 
@@ -27,7 +35,7 @@ export class S3Service {
 
   constructor() {
     this.bucketName = BUCKET_NAME || "";
-    this.defaultExpiresIn = 3600; // 1 tiếng
+    this.defaultExpiresIn = 3600; // 1 hour
   }
 
   private validateBucketName(): void {
@@ -36,11 +44,17 @@ export class S3Service {
     }
   }
 
+  /**
+   * Generates a presigned URL for uploading a file to S3.
+   * 
+   * Note: We restrict signableHeaders to avoid SignatureDoesNotMatch errors caused by
+   * automatic SDK headers (like checksums) that browsers might not send.
+   */
   async generatePresignedUrl(
     options: PresignedUrlOptions,
   ): Promise<PresignedUrlResult> {
     this.validateBucketName();
-    
+
     const { fileName, contentType, expiresIn, folder } = options;
 
     const allowedTypes = [
@@ -50,9 +64,10 @@ export class S3Service {
       "image/gif",
       "image/webp",
     ];
+    
     if (!allowedTypes.includes(contentType.toLowerCase())) {
       throw new Error(
-        `Invalid content type. Allowed types: ${allowedTypes.join(", ")}`,
+        `Invalid content type: ${contentType}. Allowed types: ${allowedTypes.join(", ")}`,
       );
     }
 
@@ -62,6 +77,7 @@ export class S3Service {
       .replace(/[^a-zA-Z0-9.-]/g, "_")
       .toLowerCase();
     const fileExtension = sanitizedFileName.split(".").pop() || "jpg";
+    
     const key = folder
       ? `${folder}/${timestamp}-${uuid}.${fileExtension}`
       : `products/${timestamp}-${uuid}.${fileExtension}`;
@@ -70,11 +86,11 @@ export class S3Service {
       Bucket: this.bucketName,
       Key: key,
       ContentType: contentType,
-      // còn thiếu
     });
 
     const url = await getSignedUrl(s3Client, command, {
       expiresIn: expiresIn || this.defaultExpiresIn,
+      signableHeaders: new Set(["host", "content-type"]),
     });
 
     return {
@@ -96,6 +112,59 @@ export class S3Service {
     );
 
     return Promise.all(promises);
+  }
+
+  /**
+   * Performs a direct upload from the server to S3.
+   */
+  async uploadFile(
+    file: Buffer | Uint8Array | Blob | string,
+    fileName: string,
+    contentType: string,
+    folder?: string,
+  ): Promise<{ url: string; key: string }> {
+    this.validateBucketName();
+
+    const timestamp = Date.now();
+    const uuid = crypto.randomUUID();
+    const sanitizedFileName = fileName
+      .replace(/[^a-zA-Z0-9.-]/g, "_")
+      .toLowerCase();
+    const fileExtension = sanitizedFileName.split(".").pop() || "jpg";
+    const key = folder
+      ? `${folder}/${timestamp}-${uuid}.${fileExtension}`
+      : `uploads/${timestamp}-${uuid}.${fileExtension}`;
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      Body: file,
+      ContentType: contentType,
+    });
+
+    await s3Client.send(command);
+
+    return {
+      url: this.getPublicUrl(key),
+      key,
+    };
+  }
+
+  /**
+   * Returns the public URL for a given S3 key.
+   */
+  /**
+   * Deletes a file from S3.
+   */
+  async deleteFile(key: string): Promise<void> {
+    this.validateBucketName();
+
+    const command = new DeleteObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    await s3Client.send(command);
   }
 
   getPublicUrl(key: string): string {

@@ -9,8 +9,11 @@ export function setupProductRoutes(app: Hono) {
   const container = Container.getInstance();
   const productController = container.getProductController();
 
-  app.post("/api/products/upload-url", requireAdmin(), (c) =>
+  app.post("/api/products/upload-url", (c) =>
     productController.generatePresignedUrl(c),
+  );
+  app.post("/api/products/delete-image", (c) =>
+    productController.deleteImage(c),
   );
   app.patch("/api/products/:id/approve", requireAdmin(), (c) =>
     productController.approveProduct(c),

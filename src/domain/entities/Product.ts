@@ -6,6 +6,7 @@ import {
   Product,
 } from "@/utils/schemas/product";
 import { ProductStatus } from "@/utils/schemas/endpoints/products";
+import { ProductVariant } from "@/utils/schemas/productVariant";
 
 export class ProductEntity implements Product {
   private idValue: string;
@@ -17,6 +18,7 @@ export class ProductEntity implements Product {
   private imagesValue: string[];
   private categoryValue?: string;
   private statusValue: ProductStatus;
+  private variantsValue: ProductVariant[];
   private createdAtValue: Date;
   private updatedAtValue: Date;
 
@@ -30,6 +32,7 @@ export class ProductEntity implements Product {
     description?: string,
     category?: string,
     status: ProductStatus = "pending",
+    variants: ProductVariant[] = [],
     createdAt?: Date,
     updatedAt?: Date,
   ) {
@@ -42,6 +45,7 @@ export class ProductEntity implements Product {
     this.descriptionValue = description;
     this.categoryValue = category;
     this.statusValue = status;
+    this.variantsValue = variants;
     this.createdAtValue = createdAt ?? new Date();
     this.updatedAtValue = updatedAt ?? new Date();
   }
@@ -80,6 +84,10 @@ export class ProductEntity implements Product {
 
   get status(): ProductStatus {
     return this.statusValue;
+  }
+
+  get variants(): ProductVariant[] {
+    return this.variantsValue;
   }
 
   get createdAt(): Date {
@@ -125,6 +133,11 @@ export class ProductEntity implements Product {
     this.updatedAtValue = new Date();
   }
 
+  set variants(value: ProductVariant[]) {
+    this.variantsValue = value;
+    this.updatedAtValue = new Date();
+  }
+
   isInStock(): boolean {
     return this.stockValue > 0 && this.statusValue === "active";
   }
@@ -152,6 +165,7 @@ export class ProductEntity implements Product {
       images: this.images,
       category: this.category,
       status: this.status,
+      variants: this.variants,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };
@@ -168,6 +182,7 @@ export class ProductEntity implements Product {
       data.description,
       data.category,
       data.status,
+      data.variants || [],
       data.createdAt,
       data.updatedAt,
     );

@@ -51,6 +51,14 @@ import { IReviewUseCase } from "@/domain/usecases/IReviewUseCase";
 import { ReviewRepository } from "@/adapters/repositories/ReviewRepository";
 import { ReviewUseCase } from "@/application/usecases/ReviewUseCase";
 import { ReviewController } from "@/adapters/controllers/ReviewController";
+import { IProductVariantRepository } from "@/domain/repositories/IProductVariantRepository";
+import { IProductVariantUseCase } from "@/domain/usecases/IProductVariantUseCase";
+import { ProductVariantRepository } from "@/adapters/repositories/ProductVariantRepository";
+import { ProductVariantUseCase } from "@/application/usecases/ProductVariantUseCase";
+import { ProductVariantController } from "@/adapters/controllers/ProductVariantController";
+import { IUploadUseCase } from "@/domain/usecases/IUploadUseCase";
+import { UploadUseCase } from "@/application/usecases/UploadUseCase";
+import { UploadController } from "@/adapters/controllers/UploadController";
 
 export class Container {
   private static instance: Container;
@@ -63,6 +71,7 @@ export class Container {
   private cartRepository: ICartRepository;
   private inventoryRepository: IInventoryRepository;
   private reviewRepository: IReviewRepository;
+  private productVariantRepository: IProductVariantRepository;
   private wsRepository: IWsRepository;
   private userUseCase: IUserUseCase;
   private authUseCase: IAuthUseCase;
@@ -75,6 +84,8 @@ export class Container {
   private cartUseCase: ICartUseCase;
   private inventoryUseCase: IInventoryUseCase;
   private reviewUseCase: IReviewUseCase;
+  private productVariantUseCase: IProductVariantUseCase;
+  private uploadUseCase: IUploadUseCase;
   private userController: UserController;
   private authController: AuthController;
   private productController: ProductController;
@@ -85,6 +96,8 @@ export class Container {
   private cartController: CartController;
   private inventoryController: InventoryController;
   private reviewController: ReviewController;
+  private productVariantController: ProductVariantController;
+  private uploadController: UploadController;
   private s3Service: S3Service;
 
   private constructor() {
@@ -97,6 +110,7 @@ export class Container {
     this.cartRepository = new CartRepository();
     this.inventoryRepository = new InventoryRepository();
     this.reviewRepository = new ReviewRepository();
+    this.productVariantRepository = new ProductVariantRepository();
     this.wsRepository = new WsRepository();
     this.s3Service = new S3Service();
 
@@ -124,6 +138,11 @@ export class Container {
       this.orderRepository,
       this.userRepository,
     );
+    this.productVariantUseCase = new ProductVariantUseCase(
+      this.productVariantRepository,
+      this.productRepository,
+    );
+    this.uploadUseCase = new UploadUseCase(this.s3Service);
 
     this.userController = new UserController(this.userUseCase);
     this.authController = new AuthController(this.authUseCase);
@@ -135,6 +154,10 @@ export class Container {
     this.cartController = new CartController(this.cartUseCase);
     this.inventoryController = new InventoryController(this.inventoryUseCase);
     this.reviewController = new ReviewController(this.reviewUseCase);
+    this.productVariantController = new ProductVariantController(
+      this.productVariantUseCase,
+    );
+    this.uploadController = new UploadController(this.uploadUseCase);
   }
 
   static getInstance(): Container {
@@ -198,5 +221,13 @@ export class Container {
 
   getReviewController(): ReviewController {
     return this.reviewController;
+  }
+
+  getProductVariantController(): ProductVariantController {
+    return this.productVariantController;
+  }
+
+  getUploadController(): UploadController {
+    return this.uploadController;
   }
 }

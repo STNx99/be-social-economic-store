@@ -13,32 +13,21 @@ export class ProductVariantRoutes {
   }
 
   private setupRoutes(): void {
-    this.app.use("/api/products/variants", requireAuth());
-    this.app.use("/api/products/variants/*", requireAuth());
+    const controller = this.container.getProductVariantController();
 
-    // Placeholder routes - sẽ implement sau
-    this.app.get("/api/products/variants", (c) => {
-      return c.json({ success: true, message: "List product variants" }, 200);
-    });
+    this.app.get("/api/products/variants", (c) =>
+      controller.listVariantsByProduct(c),
+    );
+    this.app.get("/api/products/variants/:id", (c) => controller.getVariant(c));
 
-    this.app.get("/api/products/variants/:id", (c) => {
-      const id = c.req.param("id");
-      return c.json({ success: true, message: `Get product variant ${id}` }, 200);
-    });
-
-    this.app.post("/api/products/variants", (c) => {
-      return c.json({ success: true, message: "Create product variant" }, 201);
-    });
-
-    this.app.put("/api/products/variants/:id", (c) => {
-      const id = c.req.param("id");
-      return c.json({ success: true, message: `Update product variant ${id}` }, 200);
-    });
-
-    this.app.delete("/api/products/variants/:id", (c) => {
-      const id = c.req.param("id");
-      return c.json({ success: true, message: `Delete product variant ${id}` }, 200);
-    });
+    this.app.post("/api/products/variants", requireAuth(), (c) =>
+      controller.createVariant(c),
+    );
+    this.app.put("/api/products/variants/:id", requireAuth(), (c) =>
+      controller.updateVariant(c),
+    );
+    this.app.delete("/api/products/variants/:id", requireAuth(), (c) =>
+      controller.deleteVariant(c),
+    );
   }
 }
-

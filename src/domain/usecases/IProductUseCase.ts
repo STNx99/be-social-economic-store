@@ -44,4 +44,5 @@ export interface IProductUseCase {
     id: string,
     status: "active" | "rejected",
   ): Promise<UpdateProductResponse>;
+  deleteImage(key: string): Promise<DeleteProductResponse>;
 }

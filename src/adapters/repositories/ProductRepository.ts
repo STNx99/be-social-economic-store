@@ -10,6 +10,7 @@ import { IProductRepository } from "../../domain/repositories/IProductRepository
 import { dynamoDBDocumentClient } from "@/infrastructure/database";
 import { ProductStatus } from "@/utils/schemas/endpoints/products";
 import { DynamoDBResult } from "@/infrastructure/database/dynamodb";
+import { ProductVariant } from "@/utils/schemas/productVariant";
 
 export class ProductRepository implements IProductRepository {
   private tableName: string;
@@ -37,14 +38,17 @@ export class ProductRepository implements IProductRepository {
       price: item.price as number,
       stock: item.stock as number,
       images: Array.isArray(item.images) ? (item.images as string[]) : [],
-      category: item.category as string,
+      category: item.category as string | undefined,
       status: (item.status as ProductStatus) || "pending",
-      createdAt: item.createdAt
-        ? new Date(item.createdAt as string)
-        : new Date(),
-      updatedAt: item.updatedAt
-        ? new Date(item.updatedAt as string)
-        : new Date(),
+      variants: Array.isArray(item.variants)
+        ? (item.variants as any[]).map((v) => ({
+            ...v,
+            createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
+            updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date(),
+          }))
+        : [],
+      createdAt: item.createdAt ? new Date(item.createdAt as any) : new Date(),
+      updatedAt: item.updatedAt ? new Date(item.updatedAt as any) : new Date(),
     };
   }
 
@@ -139,14 +143,13 @@ export class ProductRepository implements IProductRepository {
         images: product.images || [],
         category: product.category,
         status: product.status || "pending",
-        createdAt:
-          product.createdAt instanceof Date
-            ? product.createdAt.toISOString()
-            : new Date(product.createdAt).toISOString(),
-        updatedAt:
-          product.updatedAt instanceof Date
-            ? product.updatedAt.toISOString()
-            : new Date(product.updatedAt).toISOString(),
+        variants: (product.variants || []).map((v) => ({
+          ...v,
+          createdAt: v.createdAt.toISOString(),
+          updatedAt: v.updatedAt.toISOString(),
+        })),
+        createdAt: product.createdAt.toISOString(),
+        updatedAt: product.updatedAt.toISOString(),
       };
 
       await dynamoDBDocumentClient.send(

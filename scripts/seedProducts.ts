@@ -1,12 +1,11 @@
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
 import { dynamoDBDocumentClient } from "@/infrastructure/database";
-import { ProductInput } from "@/utils/schemas/product";
+import { Product } from "@/utils/schemas/product";
+import { ProductVariant } from "@/utils/schemas/productVariant";
 
 const TABLE_NAME = process.env.DYNAMODB_TABLE_PRODUCTS ?? "Product";
 
-const sampleProducts: Array<
-  Omit<ProductInput, "status"> & { id: string; status?: ProductInput["status"] }
-> = [
+const sampleProducts: Array<Partial<Product>> = [
   {
     id: "p1111111-1111-1111-1111-111111111111",
     sellerId: "00000000-0000-0000-0000-000000000000",
@@ -20,6 +19,32 @@ const sampleProducts: Array<
     ],
     category: "Thực phẩm & Đồ uống",
     status: "active",
+    variants: [
+      {
+        id: "v1111111-1111-1111-1111-111111111111",
+        productId: "p1111111-1111-1111-1111-111111111111",
+        sku: "COFFEE-001",
+        name: "Rang Nhẹ",
+        price: 19.99,
+        stock: 50,
+        attributes: { roast: "light" },
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: "v1111111-1111-1111-1111-111111111112",
+        productId: "p1111111-1111-1111-1111-111111111111",
+        sku: "COFFEE-002",
+        name: "Rang Vừa",
+        price: 19.99,
+        stock: 100,
+        attributes: { roast: "medium" },
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ],
   },
   {
     id: "p2222222-2222-2222-2222-222222222222",
@@ -31,6 +56,20 @@ const sampleProducts: Array<
     images: ["https://example.com/images/tote.png"],
     category: "Thời trang & Phụ kiện",
     status: "active",
+    variants: [
+      {
+        id: "v2222222-2222-2222-2222-222222222222",
+        productId: "p2222222-2222-2222-2222-222222222222",
+        sku: "TOTE-001",
+        name: "Túi Tote Xanh Lá",
+        price: 29.5,
+        stock: 80,
+        attributes: { color: "green" },
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+    ]
   },
   {
     id: "p3333333-3333-3333-3333-333333333333",
@@ -42,6 +81,20 @@ const sampleProducts: Array<
     images: ["https://example.com/images/soap-trio.png"],
     category: "Sức khỏe & Làm đẹp",
     status: "active",
+    variants: [
+      {
+        id: "v3333333-3333-3333-3333-333333333333",
+        productId: "p3333333-3333-3333-3333-333333333333",
+        sku: "SOAP-001",
+        name: "Bộ Ba Xà Phòng",
+        price: 14.75,
+        stock: 200,
+        attributes: { scent: "lemongrass" },
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+    ]
   },
   {
     id: "p4444444-4444-4444-4444-444444444444",
@@ -53,6 +106,20 @@ const sampleProducts: Array<
     images: ["https://example.com/images/notebook.png"],
     category: "Văn phòng phẩm",
     status: "active",
+    variants: [
+      {
+        id: "v4444444-4444-4444-4444-444444444444",
+        productId: "p4444444-4444-4444-4444-444444444444",
+        sku: "NOTEBOOK-001",
+        name: "Sổ Tay A5",
+        price: 12.0,
+        stock: 100,
+        attributes: { size: "A5" },
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+    ]
   },
   {
     id: "p5555555-5555-5555-5555-555555555555",
@@ -100,22 +167,6 @@ const sampleProducts: Array<
   },
 ];
 
-const buildProductItem = (
-  base: Omit<ProductInput, "status"> & { id: string; status?: ProductInput["status"] },
-) => ({
-  id: base.id,
-  sellerId: base.sellerId,
-  name: base.name,
-  description: base.description,
-  price: base.price,
-  stock: base.stock,
-  images: base.images ?? [],
-  category: base.category,
-  status: base.status ?? "active",
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-});
-
 async function seedProducts() {
   if (!TABLE_NAME) {
     throw new Error("DynamoDB table name is not configured.");
@@ -126,7 +177,25 @@ async function seedProducts() {
   );
 
   const putPromises = sampleProducts.map((product) => {
-    const item = buildProductItem(product);
+    const item = {
+      id: product.id!,
+      sellerId: product.sellerId!,
+      name: product.name!,
+      description: product.description,
+      price: product.price!,
+      stock: product.stock!,
+      images: product.images ?? [],
+      category: product.category,
+      status: product.status ?? "active",
+      variants: (product.variants ?? []).map((v: ProductVariant) => ({
+        ...v,
+        createdAt: v.createdAt instanceof Date ? v.createdAt.toISOString() : v.createdAt,
+        updatedAt: v.updatedAt instanceof Date ? v.updatedAt.toISOString() : v.updatedAt,
+      })),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
     return dynamoDBDocumentClient.send(
       new PutCommand({
         TableName: TABLE_NAME,
@@ -143,11 +212,9 @@ if (import.meta.main) {
   seedProducts()
     .catch((err) => {
       console.error("Failed to seed products", err);
-      throw err;
+      process.exit(1);
     })
     .finally(() => {
-      if (typeof process !== "undefined" && process.exit) {
-        process.exit(0);
-      }
+      process.exit(0);
     });
 }

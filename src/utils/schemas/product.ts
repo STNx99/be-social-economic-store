@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PositiveNumberSchema, NonEmptyStringSchema, URLSchema } from './common';
+import { ProductVariantSchema } from './productVariant';
 import { 
   BaseEntityFields, 
   entityDateRefinement, 
@@ -20,6 +21,7 @@ export const ProductSchema = z.object({
   images: z.array(URLSchema).default([]),
   category: NonEmptyStringSchema.max(100, 'Category must be less than 100 characters').optional(),
   status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected', 'archived', 'draft']).default('pending'),
+  variants: z.array(ProductVariantSchema).optional().default([]),
 }).refine(...entityDateRefinement);
 
 /**
@@ -33,7 +35,8 @@ export const CreateProductSchema = z.object({
   stock: z.number().int().min(0, 'Stock cannot be negative'),
   images: z.array(URLSchema).default([]),
   category: NonEmptyStringSchema.max(100, 'Category must be less than 100 characters').optional(),
-  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected', 'archived', 'draft']).optional().default('pending')
+  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected', 'archived', 'draft']).optional().default('pending'),
+  variants: z.array(ProductVariantSchema).optional().default([])
 });
 
 /**
@@ -47,7 +50,8 @@ export const UpdateProductSchema = z.object({
   stock: z.number().int().min(0, 'Stock cannot be negative').optional(),
   images: z.array(URLSchema).optional(),
   category: NonEmptyStringSchema.max(100, 'Category must be less than 100 characters').optional(),
-  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected', 'archived', 'draft']).optional()
+  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected', 'archived', 'draft']).optional(),
+  variants: z.array(ProductVariantSchema).optional()
 }).refine(...atLeastOneFieldRefinement);
 
 /**
@@ -61,7 +65,8 @@ export const ProductInputSchema = z.object({
   stock: z.number().int().min(0),
   images: z.array(URLSchema).optional().default([]),
   category: z.string().max(100).optional(),
-  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected', 'archived', 'draft']).optional().default('pending')
+  status: z.enum(['active', 'inactive', 'out_of_stock', 'pending', 'rejected', 'archived', 'draft']).optional().default('pending'),
+  variants: z.array(z.any()).optional().default([])
 });
 
 export const SanitizedProductInputSchema = ProductInputSchema.transform((data) => ({
@@ -72,7 +77,8 @@ export const SanitizedProductInputSchema = ProductInputSchema.transform((data) =
   stock: data.stock,
   images: Array.isArray(data.images) ? data.images : [],
   category: data.category?.trim() || undefined,
-  status: data.status || 'pending'
+  status: data.status || 'pending',
+  variants: data.variants || []
 }));
 
 /**

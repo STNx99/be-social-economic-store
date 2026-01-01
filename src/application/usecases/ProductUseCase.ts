@@ -34,6 +34,9 @@ const normalizeCategorySlug = (value: string): string =>
   value
     .trim()
     .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9-]/g, "");
 
@@ -459,6 +462,17 @@ export class ProductUseCase implements IProductUseCase {
       );
 
       return StatusBuilder.ok(savedProduct);
+    } catch (error) {
+      return StatusBuilder.fail(
+        error instanceof Error ? error.message : "Unknown error occurred",
+      );
+    }
+  }
+
+  async deleteImage(key: string): Promise<DeleteProductResponse> {
+    try {
+      await this.s3Service.deleteFile(key);
+      return StatusBuilder.ok(undefined);
     } catch (error) {
       return StatusBuilder.fail(
         error instanceof Error ? error.message : "Unknown error occurred",

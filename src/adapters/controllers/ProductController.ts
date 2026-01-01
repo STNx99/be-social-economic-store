@@ -21,6 +21,7 @@ export class ProductController {
       }
 
       const body = (await c.req.json()) as CreateProductRequest;
+      console.log(body)
       const response = await this.productUseCase.createProduct(body, userId);
 
       if (response.success) {
@@ -156,6 +157,27 @@ export class ProductController {
     try {
       const body = (await c.req.json()) as GeneratePresignedUrlRequest;
       const response = await this.productUseCase.generatePresignedUrl(body);
+
+      if (response.success) {
+        return c.json(response, 200);
+      } else {
+        return c.json(response, 400);
+      }
+    } catch (error: unknown) {
+      console.error(error);
+      return c.json(
+        StatusBuilder.fail(
+          error instanceof Error ? error.message : "Internal Server Error",
+        ),
+        500,
+      );
+    }
+  }
+
+  async deleteImage(c: Context) {
+    try {
+      const body = (await c.req.json()) as { key: string };
+      const response = await this.productUseCase.deleteImage(body.key);
 
       if (response.success) {
         return c.json(response, 200);
