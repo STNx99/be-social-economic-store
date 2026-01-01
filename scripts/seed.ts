@@ -13,6 +13,12 @@ async function runSeeds() {
     console.info("\n--- Seeding Products ---");
     await $`bun run scripts/seedProducts.ts`;
 
+    console.info("\n--- Seeding Inventory ---");
+    await $`bun run scripts/seedInventory.ts`;
+
+    console.info("\n--- Seeding Reviews ---");
+    await $`bun run scripts/seedReviews.ts`;
+
     console.info("\n✅ All seeds completed successfully!");
   } catch (error) {
     console.error("\n❌ Seeding failed:", error);

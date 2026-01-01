@@ -21,12 +21,14 @@ export class InventoryRepository implements IInventoryRepository {
   private inventoryTable: string;
   private movementTable: string;
   private productIdIndex: string;
+  private variantIdIndex: string;
   private movementVariantIdIndex: string;
 
   constructor() {
     this.inventoryTable = DYNAMODB_TABLES.INVENTORY || "Inventory";
-    this.movementTable = process.env.DYNAMODB_TABLE_INVENTORY_MOVEMENT || "InventoryMovement";
+    this.movementTable = DYNAMODB_TABLES.INVENTORY_MOVEMENT || "InventoryMovement";
     this.productIdIndex = process.env.DYNAMODB_INVENTORY_PRODUCT_ID_INDEX || "productId-index";
+    this.variantIdIndex = process.env.DYNAMODB_INVENTORY_VARIANT_ID_INDEX || "variantId-index";
     this.movementVariantIdIndex = process.env.DYNAMODB_MOVEMENT_VARIANT_ID_INDEX || "variantId-index";
 
     if (!DYNAMODB_TABLES.INVENTORY) {
@@ -38,13 +40,15 @@ export class InventoryRepository implements IInventoryRepository {
 
   async findByVariantId(variantId: string): Promise<InventoryItem | null> {
     const res = (await dynamoDBDocumentClient.send(
-      new GetCommand({
+      new QueryCommand({
         TableName: this.inventoryTable,
-        Key: { variantId },
+        IndexName: this.variantIdIndex,
+        KeyConditionExpression: "variantId = :variantId",
+        ExpressionAttributeValues: { ":variantId": variantId },
       })
     )) as DynamoDBResult;
 
-    return (res.Item as InventoryItem) || null;
+    return (res.Items?.[0] as InventoryItem) || null;
   }
 
   async findByProductId(productId: string): Promise<InventoryItem[]> {
@@ -92,10 +96,13 @@ export class InventoryRepository implements IInventoryRepository {
   }
 
   async deleteByVariantId(variantId: string): Promise<boolean> {
+    const item = await this.findByVariantId(variantId);
+    if (!item) return false;
+
     const res = (await dynamoDBDocumentClient.send(
       new DeleteCommand({
         TableName: this.inventoryTable,
-        Key: { variantId },
+        Key: { id: item.id },
         ReturnValues: "ALL_OLD",
       })
     )) as DynamoDBResult;
@@ -114,7 +121,6 @@ export class InventoryRepository implements IInventoryRepository {
   }
 
   async findMovementsByVariantId(variantId: string): Promise<InventoryMovement[]> {
-    // Assuming variantId is either the Partition Key or has a GSI
     const res = (await dynamoDBDocumentClient.send(
       new QueryCommand({
         TableName: this.movementTable,
@@ -141,10 +147,10 @@ export class InventoryRepository implements IInventoryRepository {
         slowMovingItems.push({
           variantId: item.variantId,
           productName: item.productName,
-          variantName: item.variantName,
+          category: item.category,
           stock: item.stock,
           daysSinceLastSale: Math.floor((Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24)),
-          totalValue: 0, // Value calculation would require price data from Product/Variant repository
+          totalValue: 0,
         });
       }
     }

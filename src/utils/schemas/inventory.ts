@@ -20,11 +20,12 @@ export const InventoryMovementReasonSchema = z.enum(['purchase', 'sale', 'return
  * Inventory item schema
  */
 export const InventoryItemSchema = z.object({
+  id: IDSchema,
   variantId: IDSchema,
   variantSku: NonEmptyStringSchema,
   productId: IDSchema,
   productName: NonEmptyStringSchema,
-  variantName: NonEmptyStringSchema,
+  category: NonEmptyStringSchema,
   stock: z.number().int().min(0),
   reserved: z.number().int().min(0),
   available: z.number().int().min(0),
@@ -63,7 +64,7 @@ export const AdjustInventoryRequestSchema = z.object({
 export const SlowMovingItemSchema = z.object({
   variantId: IDSchema,
   productName: NonEmptyStringSchema,
-  variantName: NonEmptyStringSchema,
+  category: NonEmptyStringSchema,
   stock: z.number().int().min(0),
   daysSinceLastSale: z.number().int().min(0),
   totalValue: z.number().min(0),
