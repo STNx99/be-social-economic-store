@@ -121,16 +121,39 @@ export class CartRepository implements ICartRepository {
   }
 
   async updateProductStock(productId: string, quantityToDeduct: number): Promise<void> {
-    await dynamoDBDocumentClient.send(
-      new UpdateCommand({
-        TableName: this.productTableName,
-        Key: { id: productId },
-        UpdateExpression: "SET stock = stock - :quantity, updatedAt = :updatedAt",
-        ConditionExpression: "stock >= :quantity AND attribute_exists(id)",
-        ExpressionAttributeValues: {
-          ":quantity": quantityToDeduct,
-          ":updatedAt": new Date().toISOString(),
+    const transactItems = [
+      {
+        Update: {
+          TableName: this.productTableName,
+          Key: { id: productId },
+          UpdateExpression: "SET stock = stock - :quantity, updatedAt = :updatedAt",
+          ConditionExpression: "stock >= :quantity AND attribute_exists(id)",
+          ExpressionAttributeValues: {
+            ":quantity": quantityToDeduct,
+            ":updatedAt": new Date().toISOString(),
+          },
         },
+      },
+    ];
+
+    if (this.inventoryTableName && process.env.DYNAMODB_TABLE_INVENTORY) {
+      transactItems.push({
+        Update: {
+          TableName: this.inventoryTableName,
+          Key: { id: productId },
+          UpdateExpression: "SET availableQuantity = availableQuantity - :quantity, updatedAt = :updatedAt",
+          ConditionExpression: "availableQuantity >= :quantity AND attribute_exists(id)",
+          ExpressionAttributeValues: {
+            ":quantity": quantityToDeduct,
+            ":updatedAt": new Date().toISOString(),
+          },
+        },
+      } as any);
+    }
+
+    await dynamoDBDocumentClient.send(
+      new TransactWriteCommand({
+        TransactItems: transactItems,
       }),
     );
   }
