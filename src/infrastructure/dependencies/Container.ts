@@ -46,6 +46,11 @@ import { IInventoryUseCase } from "@/domain/usecases/IInventoryUseCase";
 import { InventoryRepository } from "@/adapters/repositories/InventoryRepository";
 import { InventoryUseCase } from "@/application/usecases/InventoryUseCase";
 import { InventoryController } from "@/adapters/controllers/InventoryController";
+import { IReviewRepository } from "@/domain/repositories/IReviewRepository";
+import { IReviewUseCase } from "@/domain/usecases/IReviewUseCase";
+import { ReviewRepository } from "@/adapters/repositories/ReviewRepository";
+import { ReviewUseCase } from "@/application/usecases/ReviewUseCase";
+import { ReviewController } from "@/adapters/controllers/ReviewController";
 
 export class Container {
   private static instance: Container;
@@ -57,6 +62,7 @@ export class Container {
   private shipmentRepository: IShipmentRepository;
   private cartRepository: ICartRepository;
   private inventoryRepository: IInventoryRepository;
+  private reviewRepository: IReviewRepository;
   private wsRepository: IWsRepository;
   private userUseCase: IUserUseCase;
   private authUseCase: IAuthUseCase;
@@ -68,6 +74,7 @@ export class Container {
   private shipmentUseCase: IShipmentUseCase;
   private cartUseCase: ICartUseCase;
   private inventoryUseCase: IInventoryUseCase;
+  private reviewUseCase: IReviewUseCase;
   private userController: UserController;
   private authController: AuthController;
   private productController: ProductController;
@@ -77,6 +84,7 @@ export class Container {
   private shipmentController: ShipmentController;
   private cartController: CartController;
   private inventoryController: InventoryController;
+  private reviewController: ReviewController;
   private s3Service: S3Service;
 
   private constructor() {
@@ -88,6 +96,7 @@ export class Container {
     this.shipmentRepository = new MockShipmentRepository();
     this.cartRepository = new CartRepository();
     this.inventoryRepository = new InventoryRepository();
+    this.reviewRepository = new ReviewRepository();
     this.wsRepository = new WsRepository();
     this.s3Service = new S3Service();
 
@@ -110,6 +119,11 @@ export class Container {
       this.productRepository,
     );
     this.inventoryUseCase = new InventoryUseCase(this.inventoryRepository);
+    this.reviewUseCase = new ReviewUseCase(
+      this.reviewRepository,
+      this.orderRepository,
+      this.userRepository,
+    );
 
     this.userController = new UserController(this.userUseCase);
     this.authController = new AuthController(this.authUseCase);
@@ -120,6 +134,7 @@ export class Container {
     this.shipmentController = new ShipmentController(this.shipmentUseCase);
     this.cartController = new CartController(this.cartUseCase);
     this.inventoryController = new InventoryController(this.inventoryUseCase);
+    this.reviewController = new ReviewController(this.reviewUseCase);
   }
 
   static getInstance(): Container {
@@ -179,5 +194,9 @@ export class Container {
 
   getInventoryController(): InventoryController {
     return this.inventoryController;
+  }
+
+  getReviewController(): ReviewController {
+    return this.reviewController;
   }
 }

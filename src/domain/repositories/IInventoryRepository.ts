@@ -1,18 +1,12 @@
-export interface Inventory {
-  id: string;
-  productId: string;
-  availableQuantity: number;
-  reservedQuantity: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
+import { InventoryItem, InventoryMovement, SlowMovingItem } from "@/utils/schemas/inventory";
 
 export interface IInventoryRepository {
-  findById(id: string): Promise<Inventory | null>;
-  findByProductId(productId: string): Promise<Inventory | null>;
-  findAll(): Promise<Inventory[]>;
-  save(inventory: Inventory): Promise<Inventory>;
-  update(id: string, inventory: Partial<Inventory>): Promise<Inventory>;
-  delete(id: string): Promise<boolean>;
+  findByVariantId(variantId: string): Promise<InventoryItem | null>;
+  findByProductId(productId: string): Promise<InventoryItem[]>;
+  findAll(): Promise<InventoryItem[]>;
+  save(inventory: InventoryItem): Promise<InventoryItem>;
+  deleteByVariantId(variantId: string): Promise<boolean>;
+  saveMovement(movement: InventoryMovement): Promise<InventoryMovement>;
+  findMovementsByVariantId(variantId: string): Promise<InventoryMovement[]>;
+  getSlowMovingItems(daysThreshold: number): Promise<SlowMovingItem[]>;
 }
-

@@ -4,6 +4,9 @@ async function runSeeds() {
   console.info("🚀 Starting database seeding process...");
 
   try {
+    console.info("\n--- Seeding Admin ---");
+    await $`bun run scripts/seedAdmin.ts`;
+
     console.info("\n--- Seeding Categories ---");
     await $`bun run scripts/seedCategories.ts`;
 

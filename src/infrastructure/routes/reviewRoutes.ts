@@ -13,32 +13,24 @@ export class ReviewRoutes {
   }
 
   private setupRoutes(): void {
-    this.app.use("/api/reviews", requireAuth());
-    this.app.use("/api/reviews/*", requireAuth());
+    const reviewController = this.container.getReviewController();
 
-    // Placeholder routes - sẽ implement sau
-    this.app.get("/api/reviews", (c) => {
-      return c.json({ success: true, message: "List reviews" }, 200);
-    });
+    // Product-specific review routes
+    this.app.get("/api/products/:productId/reviews", (c) => reviewController.listReviews(c));
+    this.app.get("/api/products/:productId/reviews/summary", (c) => reviewController.getSummary(c));
+    this.app.post("/api/products/:productId/reviews", requireAuth(), (c) =>
+      reviewController.createReview(c),
+    );
 
-    this.app.get("/api/reviews/:id", (c) => {
-      const id = c.req.param("id");
-      return c.json({ success: true, message: `Get review ${id}` }, 200);
-    });
+    // General review routes
+    this.app.get("/api/reviews", (c) => reviewController.listReviews(c));
+    this.app.get("/api/reviews/:id", (c) => reviewController.getReview(c));
 
-    this.app.post("/api/reviews", (c) => {
-      return c.json({ success: true, message: "Create review" }, 201);
-    });
-
-    this.app.put("/api/reviews/:id", (c) => {
-      const id = c.req.param("id");
-      return c.json({ success: true, message: `Update review ${id}` }, 200);
-    });
-
-    this.app.delete("/api/reviews/:id", (c) => {
-      const id = c.req.param("id");
-      return c.json({ success: true, message: `Delete review ${id}` }, 200);
-    });
+    this.app.put("/api/reviews/:id", requireAuth(), (c) =>
+      reviewController.updateReview(c),
+    );
+    this.app.delete("/api/reviews/:id", requireAuth(), (c) =>
+      reviewController.deleteReview(c),
+    );
   }
 }
-

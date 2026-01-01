@@ -13,16 +13,25 @@ export class InventoryRoutes {
   }
 
   private setupRoutes(): void {
-    this.app.use("/api/inventory", requireAuth());
-    this.app.use("/api/inventory/*", requireAuth());
-
     const inventoryController = this.container.getInventoryController();
 
-    this.app.get("/api/inventory", (c) => inventoryController.listInventories(c));
-    this.app.get("/api/inventory/:id", (c) => inventoryController.getInventory(c));
-    this.app.post("/api/inventory", (c) => inventoryController.createInventory(c));
-    this.app.put("/api/inventory/:id", (c) => inventoryController.updateInventory(c));
-    this.app.delete("/api/inventory/:id", (c) => inventoryController.deleteInventory(c));
+    this.app.use("/api/inventory", requireAuth());
+    this.app.use("/api/inventory/*", requireAuth());
+    this.app.get("/api/inventory", (c) => inventoryController.listInventory(c));
+    this.app.get("/api/inventory/slow-moving", (c) =>
+      inventoryController.getSlowMovingItems(c),
+    );
+    this.app.get("/api/inventory/variants/:variantId", (c) =>
+      inventoryController.getInventoryByVariantId(c),
+    );
+    this.app.get("/api/inventory/products/:productId", (c) =>
+      inventoryController.getInventoryByProductId(c),
+    );
+    this.app.post("/api/inventory/variants/:variantId/adjust", (c) =>
+      inventoryController.adjustInventory(c),
+    );
+    this.app.get("/api/inventory/variants/:variantId/movements", (c) =>
+      inventoryController.getMovementHistory(c),
+    );
   }
 }
-
