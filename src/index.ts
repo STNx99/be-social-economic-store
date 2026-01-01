@@ -10,6 +10,8 @@ import { setupReportRoutes } from "./infrastructure/routes/reportRoutes";
 import { setupCartRoutes } from "./infrastructure/routes/cartRoutes";
 import { setUpWebsocketRoute } from "./infrastructure/routes/wsRoutes";
 import { websocket } from "hono/bun";
+import { cors } from "hono/cors";
+import { logger } from "hono/logger";
 
 const app = new Hono();
 
@@ -19,7 +21,20 @@ const IS_DYNAMO =
 if (IS_DYNAMO) {
   const failOnInit = process.env.DYNAMODB_FAIL_ON_INIT === "true";
 }
+const allowOrigins = process.env.ALLOW_ORIGINS 
 
+app.use(logger())
+app.use(
+  "*",
+  cors({
+    origin: allowOrigins || "http://localhost:3000",
+    credentials: true,
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    exposeHeaders: ["Content-Length", "X-Request-Id"],
+    maxAge: 600,
+  }),
+);
 
 setupUserRoutes(app);
 setupAuthRoutes(app);
