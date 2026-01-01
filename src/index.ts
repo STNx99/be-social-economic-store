@@ -9,6 +9,9 @@ import { setupShipmentRoutes } from "./infrastructure/routes/shipmentRoutes";
 import { setupReportRoutes } from "./infrastructure/routes/reportRoutes";
 import { setupCartRoutes } from "./infrastructure/routes/cartRoutes";
 import { setUpWebsocketRoute } from "./infrastructure/routes/wsRoutes";
+import { InventoryRoutes } from "./infrastructure/routes/inventoryRoutes";
+import { ReviewRoutes } from "./infrastructure/routes/reviewRoutes";
+import { ProductVariantRoutes } from "./infrastructure/routes/productVariantRoutes";
 import { websocket } from "hono/bun";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -46,6 +49,9 @@ setupShipmentRoutes(app);
 setupReportRoutes(app);
 setupCartRoutes(app);
 setUpWebsocketRoute(app);
+new InventoryRoutes(app);
+new ReviewRoutes(app);
+new ProductVariantRoutes(app);
 
 // 404 handler
 app.notFound((c) => {

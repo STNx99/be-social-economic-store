@@ -14,11 +14,13 @@ import { dynamoDBDocumentClient, DynamoDBResult } from "@/infrastructure/databas
 export class CartRepository implements ICartRepository {
   private cartTableName: string;
   private productTableName: string;
+  private inventoryTableName: string;
   private userIdIndex?: string;
 
   constructor() {
     this.cartTableName = process.env.DYNAMODB_TABLE_CARTS ?? process.env.DYNAMODB_TABLE_CART ?? "Cart";
     this.productTableName = process.env.DYNAMODB_TABLE_PRODUCTS ?? process.env.DYNAMODB_TABLE_PRODUCT ?? "Product";
+    this.inventoryTableName = process.env.DYNAMODB_TABLE_INVENTORY ?? "Inventory";
     this.userIdIndex = process.env.DYNAMODB_CART_USER_ID_INDEX;
 
     if (!process.env.DYNAMODB_TABLE_CARTS && !process.env.DYNAMODB_TABLE_CART) {
@@ -119,16 +121,39 @@ export class CartRepository implements ICartRepository {
   }
 
   async updateProductStock(productId: string, quantityToDeduct: number): Promise<void> {
-    await dynamoDBDocumentClient.send(
-      new UpdateCommand({
-        TableName: this.productTableName,
-        Key: { id: productId },
-        UpdateExpression: "SET stock = stock - :quantity, updatedAt = :updatedAt",
-        ConditionExpression: "stock >= :quantity AND attribute_exists(id)",
-        ExpressionAttributeValues: {
-          ":quantity": quantityToDeduct,
-          ":updatedAt": new Date().toISOString(),
+    const transactItems = [
+      {
+        Update: {
+          TableName: this.productTableName,
+          Key: { id: productId },
+          UpdateExpression: "SET stock = stock - :quantity, updatedAt = :updatedAt",
+          ConditionExpression: "stock >= :quantity AND attribute_exists(id)",
+          ExpressionAttributeValues: {
+            ":quantity": quantityToDeduct,
+            ":updatedAt": new Date().toISOString(),
+          },
         },
+      },
+    ];
+
+    if (this.inventoryTableName && process.env.DYNAMODB_TABLE_INVENTORY) {
+      transactItems.push({
+        Update: {
+          TableName: this.inventoryTableName,
+          Key: { id: productId },
+          UpdateExpression: "SET availableQuantity = availableQuantity - :quantity, updatedAt = :updatedAt",
+          ConditionExpression: "availableQuantity >= :quantity AND attribute_exists(id)",
+          ExpressionAttributeValues: {
+            ":quantity": quantityToDeduct,
+            ":updatedAt": new Date().toISOString(),
+          },
+        },
+      } as any);
+    }
+
+    await dynamoDBDocumentClient.send(
+      new TransactWriteCommand({
+        TransactItems: transactItems,
       }),
     );
   }
@@ -150,28 +175,46 @@ export class CartRepository implements ICartRepository {
       updatedAt: new Date().toISOString(),
     };
 
+    const transactItems = [
+      {
+        Put: {
+          TableName: this.cartTableName,
+          Item: cartItem,
+        },
+      },
+      {
+        Update: {
+          TableName: this.productTableName,
+          Key: { id: productId },
+          UpdateExpression: "SET stock = stock - :quantity, updatedAt = :updatedAt",
+          ConditionExpression: "stock >= :quantity AND attribute_exists(id)",
+          ExpressionAttributeValues: {
+            ":quantity": quantity,
+            ":updatedAt": new Date().toISOString(),
+          },
+        },
+      },
+    ];
+
+    // Add inventory update if inventory table is configured
+    if (this.inventoryTableName && process.env.DYNAMODB_TABLE_INVENTORY) {
+      transactItems.push({
+        Update: {
+          TableName: this.inventoryTableName,
+          Key: { id: productId },
+          UpdateExpression: "SET availableQuantity = availableQuantity - :quantity, updatedAt = :updatedAt",
+          ConditionExpression: "availableQuantity >= :quantity AND attribute_exists(id)",
+          ExpressionAttributeValues: {
+            ":quantity": quantity,
+            ":updatedAt": new Date().toISOString(),
+          },
+        },
+      } as any);
+    }
+
     await dynamoDBDocumentClient.send(
       new TransactWriteCommand({
-        TransactItems: [
-          {
-            Put: {
-              TableName: this.cartTableName,
-              Item: cartItem,
-            },
-          },
-          {
-            Update: {
-              TableName: this.productTableName,
-              Key: { id: productId },
-              UpdateExpression: "SET stock = stock - :quantity, updatedAt = :updatedAt",
-              ConditionExpression: "stock >= :quantity AND attribute_exists(id)",
-              ExpressionAttributeValues: {
-                ":quantity": quantity,
-                ":updatedAt": new Date().toISOString(),
-              },
-            },
-          },
-        ],
+        TransactItems: transactItems,
       }),
     );
 
