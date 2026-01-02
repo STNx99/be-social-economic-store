@@ -4,6 +4,7 @@ import {
   UpdateProductRequest,
   DeleteProductRequest,
   ListProductsRequest,
+  ListProductsRequestSchema,
   GeneratePresignedUrlRequest,
   ProductStatus,
 } from "@/utils/schemas/endpoints/products";
@@ -124,13 +125,7 @@ export class ProductController {
       const userId = c.get("userId") as string | undefined;
       const role = c.get("role") as string | undefined;
       const query = c.req.query();
-      const request: ListProductsRequest = {
-        page: query.page ? parseInt(query.page) : 1,
-        limit: query.limit ? parseInt(query.limit) : 10,
-        category: query.category,
-        status: query.status as ProductStatus | undefined,
-        search: query.search,
-      };
+      const request = ListProductsRequestSchema.parse(query);
 
       const response = await this.productUseCase.listProducts(
         request,
@@ -161,13 +156,7 @@ export class ProductController {
       }
 
       const query = c.req.query();
-      const request: ListProductsRequest = {
-        page: query.page ? parseInt(query.page) : 1,
-        limit: query.limit ? parseInt(query.limit) : 10,
-        category: query.category,
-        status: query.status as ProductStatus | undefined,
-        search: query.search,
-      };
+      const request = ListProductsRequestSchema.parse(query);
 
       const response = await this.productUseCase.listUserProducts(
         request,

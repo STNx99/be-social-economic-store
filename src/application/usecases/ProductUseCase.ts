@@ -368,12 +368,33 @@ export class ProductUseCase implements IProductUseCase {
       const limit = request.limit || 10;
       const skip = (page - 1) * limit;
 
+      let categoryFilter = request.category;
+      if (categoryFilter && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryFilter)) {
+        const category = await this.categoryRepository.findById(categoryFilter);
+        if (category) {
+          categoryFilter = category.slug;
+        }
+      }
+
       const products = await this.productRepository.list({
-        category: request.category,
+        category: categoryFilter,
         status: request.status,
         search: request.search,
         isAdmin: role === "admin",
       });
+
+      if (request.sortBy) {
+        const sortBy = request.sortBy as keyof Product;
+        const sortOrder = request.sortOrder === "desc" ? -1 : 1;
+        products.sort((a, b) => {
+          const valA = a[sortBy];
+          const valB = b[sortBy];
+          if (valA === undefined || valB === undefined) return 0;
+          if (valA < valB) return -1 * sortOrder;
+          if (valA > valB) return 1 * sortOrder;
+          return 0;
+        });
+      }
 
       const total = products.length;
       const paginatedProducts = products.slice(skip, skip + limit);
@@ -401,11 +422,32 @@ export class ProductUseCase implements IProductUseCase {
       const limit = request.limit || 10;
       const skip = (page - 1) * limit;
 
+      let categoryFilter = request.category;
+      if (categoryFilter && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryFilter)) {
+        const category = await this.categoryRepository.findById(categoryFilter);
+        if (category) {
+          categoryFilter = category.slug;
+        }
+      }
+
       const products = await this.productRepository.findBySellerId(userId, {
-        category: request.category,
+        category: categoryFilter,
         status: request.status,
         search: request.search,
       });
+
+      if (request.sortBy) {
+        const sortBy = request.sortBy as keyof Product;
+        const sortOrder = request.sortOrder === "desc" ? -1 : 1;
+        products.sort((a, b) => {
+          const valA = a[sortBy];
+          const valB = b[sortBy];
+          if (valA === undefined || valB === undefined) return 0;
+          if (valA < valB) return -1 * sortOrder;
+          if (valA > valB) return 1 * sortOrder;
+          return 0;
+        });
+      }
 
       const total = products.length;
       const paginatedProducts = products.slice(skip, skip + limit);

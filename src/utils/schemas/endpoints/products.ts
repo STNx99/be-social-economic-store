@@ -69,11 +69,13 @@ export const DeleteProductResponseSchema = BaseResponseSchema;
  * Schema for listing products with filters and pagination
  */
 export const ListProductsRequestSchema = z.object({
-  page: z.number().int().positive().optional().default(1),
-  limit: z.number().int().positive().max(100).optional().default(10),
+  page: z.coerce.number().int().positive().optional().default(1),
+  limit: z.coerce.number().int().positive().max(100).optional().default(10),
   category: z.string().optional(),
   status: productStatusEnum.optional(),
   search: z.string().optional(),
+  sortBy: z.string().optional().default("createdAt"),
+  sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
 });
 
 /**
