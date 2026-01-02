@@ -19,7 +19,6 @@ export class AuthUseCase {
 
   async register(request: AuthRegisterRequest): Promise<AuthRegisterResponse> {
     try {
-      // 1. Validate input với schema
       let validatedInput: CreateUserInput;
       try {
         validatedInput = validateData(SanitizedUserInputSchema, request);
@@ -30,7 +29,6 @@ export class AuthUseCase {
         throw error;
       }
 
-      // 2. Check email đã tồn tại chưa
       const existingUser = await this.userRepository.findByEmail(
         validatedInput.email,
       );

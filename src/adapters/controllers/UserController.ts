@@ -25,4 +25,26 @@ export class UserController {
       );
     }
   }
+
+  async listUsers(c: Context) {
+    try {
+      const page = parseInt(c.req.query("page") || "1");
+      const limit = parseInt(c.req.query("limit") || "10");
+
+      const response = await this.userUseCase.listUsers(page, limit);
+
+      if (response.success) {
+        return c.json(response, 200);
+      } else {
+        return c.json(response, 400);
+      }
+    } catch (error) {
+      return c.json(
+        StatusBuilder.fail(
+          error instanceof Error ? error.message : "Unknown error",
+        ),
+        500,
+      );
+    }
+  }
 }

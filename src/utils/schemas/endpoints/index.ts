@@ -14,6 +14,8 @@ export {
   CreateUserResponseSchema,
   GetUserRequestSchema,
   GetUserResponseSchema,
+  ListUsersResponseSchema,
+  type ListUsersResponse,
   type CreateUserRequest,
   type CreateUserResponse,
   type GetUserRequest,

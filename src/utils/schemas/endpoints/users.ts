@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { UserSchema } from "../user";
 import { EmailSchema, NameSchema, PasswordSchema, IDSchema } from "../common";
-import { createEndpointResponseSchema } from "../responses/common";
+import { createEndpointResponseSchema, BaseResponseSchema } from "../responses/common";
 
 /**
  * Schema for creating a new user via API
@@ -29,8 +29,22 @@ export const GetUserRequestSchema = z.object({
  */
 export const GetUserResponseSchema = createEndpointResponseSchema(UserSchema);
 
+/**
+ * Response schema for listing users
+ */
+export const ListUsersResponseSchema = BaseResponseSchema.extend({
+  data: z.array(UserSchema).optional(),
+  pagination: z.object({
+    page: z.number(),
+    limit: z.number(),
+    total: z.number(),
+    totalPages: z.number(),
+  }).optional(),
+});
+
 // Type exports
 export type CreateUserRequest = z.infer<typeof CreateUserRequestSchema>;
 export type CreateUserResponse = z.infer<typeof CreateUserResponseSchema>;
 export type GetUserRequest = z.infer<typeof GetUserRequestSchema>;
 export type GetUserResponse = z.infer<typeof GetUserResponseSchema>;
+export type ListUsersResponse = z.infer<typeof ListUsersResponseSchema>;

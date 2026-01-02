@@ -26,7 +26,7 @@ export class UserRepository implements IUserRepository {
 
   private itemToUser(item: Record<string, unknown>): User {
     return {
-      id: item.id as string,
+      id: (item.id || item.Id) as string,
       email: item.email as string,
       name: item.name as string,
       password: item.password as string,
@@ -37,14 +37,26 @@ export class UserRepository implements IUserRepository {
   }
 
   async findById(id: string): Promise<User | null> {
-    const cmd: GetCommand = new GetCommand({
-      TableName: this.tableName,
-      Key: { id },
-    });
+    try {
+      const cmd: GetCommand = new GetCommand({
+        TableName: this.tableName,
+        Key: { id },
+      });
 
-    const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
-    if (!res.Item) return null;
-    return this.itemToUser(res.Item);
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+      if (res.Item) return this.itemToUser(res.Item);
+    } catch (error: any) {
+      if (error.name === "ValidationException") {
+        const cmd: GetCommand = new GetCommand({
+          TableName: this.tableName,
+          Key: { Id: id },
+        });
+
+        const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+        if (res.Item) return this.itemToUser(res.Item);
+      }
+    }
+    return null;
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -76,6 +88,7 @@ export class UserRepository implements IUserRepository {
   async save(user: User): Promise<User> {
     const item = {
       id: user.id,
+      Id: user.id,
       email: user.email,
       name: user.name,
       password: user.password,
@@ -105,15 +118,30 @@ export class UserRepository implements IUserRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = (await dynamoDBDocumentClient.send(
-      new DeleteCommand({
-        TableName: this.tableName,
-        Key: { id },
-        ReturnValues: "ALL_OLD",
-      }),
-    )) as DynamoDBResult;
+    try {
+      const res = (await dynamoDBDocumentClient.send(
+        new DeleteCommand({
+          TableName: this.tableName,
+          Key: { id },
+          ReturnValues: "ALL_OLD",
+        }),
+      )) as DynamoDBResult;
 
-    return !!res.Attributes;
+      return !!res.Attributes;
+    } catch (error: any) {
+      if (error.name === "ValidationException") {
+        const res = (await dynamoDBDocumentClient.send(
+          new DeleteCommand({
+            TableName: this.tableName,
+            Key: { Id: id },
+            ReturnValues: "ALL_OLD",
+          }),
+        )) as DynamoDBResult;
+
+        return !!res.Attributes;
+      }
+      throw error;
+    }
   }
 
   async findAll(): Promise<User[]> {

@@ -1,34 +1,45 @@
 import {
-  ProductEntity,
-  DomainValidationError,
-} from "@/domain/entities/Product";
-import { ICategoryRepository } from "@/domain/repositories/ICategoryRepository";
-import { IProductRepository } from "@/domain/repositories/IProductRepository";
-import { S3Service } from "@/infrastructure/s3/s3Service";
-import { validateData, ValidationError, StatusBuilder } from "@/utils";
+  ApiResponse,
+  ResponseDetails,
+  StatusBuilder,
+  ValidationError,
+  validateData,
+} from "@/utils";
 import {
   CreateProductRequest,
   CreateProductResponse,
-  GetProductRequest,
-  GetProductResponse,
-  UpdateProductRequest,
-  UpdateProductResponse,
   DeleteProductRequest,
   DeleteProductResponse,
-  ListProductsRequest,
-  ListProductsResponse,
   GeneratePresignedUrlRequest,
   GeneratePresignedUrlResponse,
+  GetProductRequest,
+  GetProductResponse,
+  ListProductsRequest,
+  ListProductsResponse,
+  UpdateProductRequest,
+  UpdateProductResponse,
 } from "@/utils/schemas/endpoints/products";
 import {
   CreateProductInput,
+  Product,
+  ProductIdParamSchema,
+  SanitizedProductInput,
+  SanitizedProductInputSchema,
   UpdateProductInput,
   UpdateProductSchema,
-  SanitizedProductInputSchema,
-  ProductIdParamSchema,
-  Product,
 } from "@/utils/schemas/product";
+import { ProductVariant } from "@/utils/schemas/productVariant";
+import { CreateProductVariantRequest } from "@/utils/schemas/endpoints/productVariants";
+import { IProductRepository } from "@/domain/repositories/IProductRepository";
+import { IInventoryRepository } from "@/domain/repositories/IInventoryRepository";
+import { ICategoryRepository } from "@/domain/repositories/ICategoryRepository";
 import { IProductUseCase } from "@/domain/usecases/IProductUseCase";
+import { S3Service } from "@/infrastructure/s3/s3Service";
+import { IProductVariantUseCase } from "@/domain/usecases/IProductVariantUseCase";
+import {
+  ProductEntity,
+  DomainValidationError,
+} from "@/domain/entities/Product";
 
 const normalizeCategorySlug = (value: string): string =>
   value
@@ -45,6 +56,8 @@ export class ProductUseCase implements IProductUseCase {
     private productRepository: IProductRepository,
     private s3Service: S3Service,
     private categoryRepository: ICategoryRepository,
+    private inventoryRepository: IInventoryRepository,
+    private variantUseCase: IProductVariantUseCase,
   ) {}
 
   async createProduct(
@@ -52,89 +65,70 @@ export class ProductUseCase implements IProductUseCase {
     sellerId: string,
   ): Promise<CreateProductResponse> {
     try {
-      let validatedInput: CreateProductInput;
-      try {
-        validatedInput = validateData(SanitizedProductInputSchema, {
-          ...request,
-          sellerId,
-        });
-      } catch (error) {
-        if (error instanceof ValidationError) {
-          return StatusBuilder.fail("Validation failed", error.details);
-        }
-        throw error;
-      }
+      const validatedInput = validateData(SanitizedProductInputSchema, {
+        ...request,
+        sellerId,
+      });
 
-      try {
-        ProductEntity.validateCreation(validatedInput);
-      } catch (error) {
-        if (error instanceof DomainValidationError) {
-          return StatusBuilder.fail("Validation failed", error.details);
-        }
-        throw error;
-      }
-      if (validatedInput.category) {
-        const normalizedCategorySlug = normalizeCategorySlug(
-          validatedInput.category,
-        );
-        if (!normalizedCategorySlug) {
-          return StatusBuilder.fail("Validation failed", [
-            {
-              field: "category",
-              message: "Category slug must contain alphanumeric characters",
-            },
-          ]);
-        }
+      const categorySlug = await this.resolveCategorySlug(
+        validatedInput.category,
+      );
+      validatedInput.category = categorySlug;
 
-        const referencedCategory = await this.categoryRepository.findBySlug(
-          normalizedCategorySlug,
-        );
-        if (!referencedCategory) {
-          return StatusBuilder.fail("Category not found", [
-            {
-              field: "category",
-              message: "No category exists with the provided slug",
-            },
-          ]);
-        }
+      const inputVariants = validatedInput.variants;
+      const totalStock = this.calculateTotalStock(
+        validatedInput.stock,
+        inputVariants,
+      );
 
-        validatedInput.category = normalizedCategorySlug;
-      }
+      this.validateProductDomain(validatedInput, totalStock);
 
+      const productId = crypto.randomUUID();
       const product = new ProductEntity(
-        crypto.randomUUID(),
+        productId,
         validatedInput.sellerId,
         validatedInput.name,
         validatedInput.price,
-        validatedInput.stock,
+        totalStock,
         validatedInput.images || [],
         validatedInput.description,
         validatedInput.category,
         validatedInput.status || "pending",
+        [],
       );
 
       const savedProduct = await this.productRepository.save(product.toJSON());
+      await this.initializeMasterInventory(savedProduct);
+
+      if (inputVariants.length > 0) {
+        const createdVariants = await this.processVariants(
+          productId,
+          inputVariants,
+          sellerId,
+        );
+
+        if ("error" in createdVariants) {
+          await this.rollbackProductCreation(
+            savedProduct.id,
+            createdVariants.rollbackItems,
+            sellerId,
+          );
+          return StatusBuilder.fail(
+            createdVariants.error,
+            createdVariants.details,
+          ) as CreateProductResponse;
+        }
+
+        const productWithVariants =
+          ProductEntity.fromValidatedData(savedProduct);
+        productWithVariants.variants = createdVariants;
+        await this.productRepository.save(productWithVariants.toJSON());
+        savedProduct.variants = createdVariants;
+      }
 
       return StatusBuilder.ok(savedProduct);
     } catch (error: unknown) {
-      if (error instanceof DomainValidationError) {
-        return StatusBuilder.fail("Validation failed", error.details);
-      }
-
-      const err = error as { message?: string; name?: string };
-      if (
-        err?.message?.includes("does not exist") ||
-        err?.name === "ResourceNotFoundException"
-      ) {
-        return StatusBuilder.fail(
-          err.message ||
-            "DynamoDB table does not exist. Please create the Products table first.",
-        );
-      }
-
-      return StatusBuilder.fail(
-        error instanceof Error ? error.message : "Unknown error occurred",
-      );
+      return this.handleError(error);
     }
   }
 
@@ -144,48 +138,30 @@ export class ProductUseCase implements IProductUseCase {
     role?: string,
   ): Promise<GetProductResponse> {
     try {
-      let validatedParams;
-      try {
-        validatedParams = validateData(ProductIdParamSchema, {
-          id: request.id,
-        });
-      } catch (error) {
-        if (error instanceof ValidationError) {
-          return StatusBuilder.fail("Invalid product ID", error.details);
-        }
-        throw error;
-      }
-
+      const validatedParams = validateData(ProductIdParamSchema, {
+        id: request.id,
+      });
       const product = await this.productRepository.findById(validatedParams.id);
 
       if (!product) {
         return StatusBuilder.fail("Product not found", [
-          {
-            field: "id",
-            message: "No product exists with the provided ID",
-          },
+          { field: "id", message: "No product exists with the provided ID" },
         ]);
       }
 
       if (role !== "admin") {
         const isOwner = userId && product.sellerId === userId;
         const isActive = product.status === "active";
-
         if (!isOwner && !isActive) {
           return StatusBuilder.fail("Product not found", [
-            {
-              field: "id",
-              message: "No product exists with the provided ID",
-            },
+            { field: "id", message: "No product exists with the provided ID" },
           ]);
         }
       }
 
       return StatusBuilder.ok(product);
     } catch (error) {
-      return StatusBuilder.fail(
-        error instanceof Error ? error.message : "Unknown error occurred",
-      );
+      return this.handleError(error);
     }
   }
 
@@ -195,26 +171,14 @@ export class ProductUseCase implements IProductUseCase {
     userId: string,
   ): Promise<UpdateProductResponse> {
     try {
-      let validatedParams;
-      try {
-        validatedParams = validateData(ProductIdParamSchema, { id });
-      } catch (error) {
-        if (error instanceof ValidationError) {
-          return StatusBuilder.fail("Invalid product ID", error.details);
-        }
-        throw error;
-      }
-
+      const validatedParams = validateData(ProductIdParamSchema, { id });
       const existingProduct = await this.productRepository.findById(
         validatedParams.id,
       );
 
       if (!existingProduct) {
         return StatusBuilder.fail("Product not found", [
-          {
-            field: "id",
-            message: "No product exists with the provided ID",
-          },
+          { field: "id", message: "No product exists with the provided ID" },
         ]);
       }
 
@@ -227,83 +191,27 @@ export class ProductUseCase implements IProductUseCase {
         ]);
       }
 
-      let validatedUpdate: UpdateProductInput;
-      try {
-        validatedUpdate = validateData(
-          UpdateProductSchema,
-          request,
-        ) as UpdateProductInput;
-        ProductEntity.validateUpdate(validatedUpdate);
-      } catch (error) {
-        if (
-          error instanceof ValidationError ||
-          error instanceof DomainValidationError
-        ) {
-          return StatusBuilder.fail("Validation failed", error.details);
-        }
-        throw error;
-      }
+      const validatedUpdate = validateData(
+        UpdateProductSchema,
+        request,
+      ) as UpdateProductInput;
+      ProductEntity.validateUpdate(validatedUpdate);
+
       if (validatedUpdate.category !== undefined) {
-        const normalizedCategorySlug = normalizeCategorySlug(
+        validatedUpdate.category = await this.resolveCategorySlug(
           validatedUpdate.category,
         );
-        if (!normalizedCategorySlug) {
-          return StatusBuilder.fail("Validation failed", [
-            {
-              field: "category",
-              message: "Category slug must contain alphanumeric characters",
-            },
-          ]);
-        }
-
-        const referencedCategory = await this.categoryRepository.findBySlug(
-          normalizedCategorySlug,
-        );
-        if (!referencedCategory) {
-          return StatusBuilder.fail("Category not found", [
-            {
-              field: "category",
-              message: "No category exists with the provided slug",
-            },
-          ]);
-        }
-
-        validatedUpdate.category = normalizedCategorySlug;
       }
 
       const updatedProduct = ProductEntity.fromValidatedData(existingProduct);
-
-      if (validatedUpdate.name !== undefined) {
-        updatedProduct.name = validatedUpdate.name;
-      }
-      if (validatedUpdate.price !== undefined) {
-        updatedProduct.price = validatedUpdate.price;
-      }
-      if (validatedUpdate.stock !== undefined) {
-        updatedProduct.stock = validatedUpdate.stock;
-      }
-      if (validatedUpdate.images !== undefined) {
-        updatedProduct.images = validatedUpdate.images;
-      }
-      if (validatedUpdate.description !== undefined) {
-        updatedProduct.description = validatedUpdate.description;
-      }
-      if (validatedUpdate.category !== undefined) {
-        updatedProduct.category = validatedUpdate.category;
-      }
-      if (validatedUpdate.status !== undefined) {
-        updatedProduct.status = validatedUpdate.status;
-      }
+      this.applyUpdates(updatedProduct, validatedUpdate);
 
       const savedProduct = await this.productRepository.save(
         updatedProduct.toJSON(),
       );
-
       return StatusBuilder.ok(savedProduct);
     } catch (error) {
-      return StatusBuilder.fail(
-        error instanceof Error ? error.message : "Unknown error occurred",
-      );
+      return this.handleError(error);
     }
   }
 
@@ -312,26 +220,14 @@ export class ProductUseCase implements IProductUseCase {
     userId: string,
   ): Promise<DeleteProductResponse> {
     try {
-      let validatedParams;
-      try {
-        validatedParams = validateData(ProductIdParamSchema, {
-          id: request.id,
-        });
-      } catch (error) {
-        if (error instanceof ValidationError) {
-          return StatusBuilder.fail("Invalid product ID", error.details);
-        }
-        throw error;
-      }
-
+      const validatedParams = validateData(ProductIdParamSchema, {
+        id: request.id,
+      });
       const product = await this.productRepository.findById(validatedParams.id);
 
       if (!product) {
         return StatusBuilder.fail("Product not found", [
-          {
-            field: "id",
-            message: "No product exists with the provided ID",
-          },
+          { field: "id", message: "No product exists with the provided ID" },
         ]);
       }
 
@@ -344,17 +240,13 @@ export class ProductUseCase implements IProductUseCase {
         ]);
       }
 
+      await this.cleanupProductResources(validatedParams.id, userId);
       const deleted = await this.productRepository.delete(validatedParams.id);
 
-      if (!deleted) {
-        return StatusBuilder.fail("Failed to delete product");
-      }
-
+      if (!deleted) return StatusBuilder.fail("Failed to delete product");
       return StatusBuilder.ok(undefined);
     } catch (error) {
-      return StatusBuilder.fail(
-        error instanceof Error ? error.message : "Unknown error occurred",
-      );
+      return this.handleError(error);
     }
   }
 
@@ -368,14 +260,7 @@ export class ProductUseCase implements IProductUseCase {
       const limit = request.limit || 10;
       const skip = (page - 1) * limit;
 
-      let categoryFilter = request.category;
-      if (categoryFilter && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryFilter)) {
-        const category = await this.categoryRepository.findById(categoryFilter);
-        if (category) {
-          categoryFilter = category.slug;
-        }
-      }
-
+      const categoryFilter = await this.resolveCategoryFilter(request.category);
       const products = await this.productRepository.list({
         category: categoryFilter,
         status: request.status,
@@ -383,18 +268,7 @@ export class ProductUseCase implements IProductUseCase {
         isAdmin: role === "admin",
       });
 
-      if (request.sortBy) {
-        const sortBy = request.sortBy as keyof Product;
-        const sortOrder = request.sortOrder === "desc" ? -1 : 1;
-        products.sort((a, b) => {
-          const valA = a[sortBy];
-          const valB = b[sortBy];
-          if (valA === undefined || valB === undefined) return 0;
-          if (valA < valB) return -1 * sortOrder;
-          if (valA > valB) return 1 * sortOrder;
-          return 0;
-        });
-      }
+      this.sortProducts(products, request.sortBy, request.sortOrder);
 
       const total = products.length;
       const paginatedProducts = products.slice(skip, skip + limit);
@@ -407,9 +281,7 @@ export class ProductUseCase implements IProductUseCase {
         totalPages,
       });
     } catch (error) {
-      return StatusBuilder.fail(
-        error instanceof Error ? error.message : "Unknown error occurred",
-      );
+      return this.handleError(error);
     }
   }
 
@@ -422,32 +294,14 @@ export class ProductUseCase implements IProductUseCase {
       const limit = request.limit || 10;
       const skip = (page - 1) * limit;
 
-      let categoryFilter = request.category;
-      if (categoryFilter && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryFilter)) {
-        const category = await this.categoryRepository.findById(categoryFilter);
-        if (category) {
-          categoryFilter = category.slug;
-        }
-      }
-
+      const categoryFilter = await this.resolveCategoryFilter(request.category);
       const products = await this.productRepository.findBySellerId(userId, {
         category: categoryFilter,
         status: request.status,
         search: request.search,
       });
 
-      if (request.sortBy) {
-        const sortBy = request.sortBy as keyof Product;
-        const sortOrder = request.sortOrder === "desc" ? -1 : 1;
-        products.sort((a, b) => {
-          const valA = a[sortBy];
-          const valB = b[sortBy];
-          if (valA === undefined || valB === undefined) return 0;
-          if (valA < valB) return -1 * sortOrder;
-          if (valA > valB) return 1 * sortOrder;
-          return 0;
-        });
-      }
+      this.sortProducts(products, request.sortBy, request.sortOrder);
 
       const total = products.length;
       const paginatedProducts = products.slice(skip, skip + limit);
@@ -460,9 +314,7 @@ export class ProductUseCase implements IProductUseCase {
         totalPages,
       });
     } catch (error) {
-      return StatusBuilder.fail(
-        error instanceof Error ? error.message : "Unknown error occurred",
-      );
+      return this.handleError(error);
     }
   }
 
@@ -475,12 +327,9 @@ export class ProductUseCase implements IProductUseCase {
         contentType: request.contentType,
         folder: "products",
       });
-
       return StatusBuilder.ok(result);
     } catch (error) {
-      return StatusBuilder.fail(
-        error instanceof Error ? error.message : "Unknown error occurred",
-      );
+      return this.handleError(error);
     }
   }
 
@@ -489,26 +338,14 @@ export class ProductUseCase implements IProductUseCase {
     status: "active" | "rejected",
   ): Promise<UpdateProductResponse> {
     try {
-      let validatedParams;
-      try {
-        validatedParams = validateData(ProductIdParamSchema, { id });
-      } catch (error) {
-        if (error instanceof ValidationError) {
-          return StatusBuilder.fail("Invalid product ID", error.details);
-        }
-        throw error;
-      }
-
+      const validatedParams = validateData(ProductIdParamSchema, { id });
       const existingProduct = await this.productRepository.findById(
         validatedParams.id,
       );
 
       if (!existingProduct) {
         return StatusBuilder.fail("Product not found", [
-          {
-            field: "id",
-            message: "No product exists with the provided ID",
-          },
+          { field: "id", message: "No product exists with the provided ID" },
         ]);
       }
 
@@ -518,12 +355,9 @@ export class ProductUseCase implements IProductUseCase {
       const savedProduct = await this.productRepository.save(
         updatedProduct.toJSON(),
       );
-
       return StatusBuilder.ok(savedProduct);
     } catch (error) {
-      return StatusBuilder.fail(
-        error instanceof Error ? error.message : "Unknown error occurred",
-      );
+      return this.handleError(error);
     }
   }
 
@@ -532,9 +366,214 @@ export class ProductUseCase implements IProductUseCase {
       await this.s3Service.deleteFile(key);
       return StatusBuilder.ok(undefined);
     } catch (error) {
-      return StatusBuilder.fail(
-        error instanceof Error ? error.message : "Unknown error occurred",
-      );
+      return this.handleError(error);
     }
+  }
+
+  private async resolveCategorySlug(
+    categoryInput?: string,
+  ): Promise<string | undefined> {
+    if (!categoryInput) return undefined;
+
+    let slug = categoryInput;
+    if (
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        slug,
+      )
+    ) {
+      const category = await this.categoryRepository.findById(slug);
+      if (category) slug = category.slug;
+    }
+
+    const normalized = normalizeCategorySlug(slug);
+    if (!normalized) {
+      throw new DomainValidationError("Validation failed", [
+        {
+          field: "category",
+          message: "Category slug must contain alphanumeric characters",
+        },
+      ]);
+    }
+
+    const referenced = await this.categoryRepository.findBySlug(normalized);
+    if (!referenced) {
+      throw new DomainValidationError("Category not found", [
+        {
+          field: "category",
+          message: "No category exists with the provided slug or ID",
+        },
+      ]);
+    }
+
+    return normalized;
+  }
+
+  private async resolveCategoryFilter(
+    category?: string,
+  ): Promise<string | undefined> {
+    if (!category) return undefined;
+    if (
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        category,
+      )
+    ) {
+      const cat = await this.categoryRepository.findById(category);
+      return cat?.slug || category;
+    }
+    return category;
+  }
+
+  private calculateTotalStock(
+    baseStock: number,
+    variants: SanitizedProductInput["variants"],
+  ): number {
+    if (variants.length > 0) {
+      return variants.reduce((sum: number, v) => sum + (v.stock || 0), 0);
+    }
+    return baseStock;
+  }
+
+  private validateProductDomain(
+    input: SanitizedProductInput,
+    totalStock: number,
+  ): void {
+    const { variants, ...productData } = input;
+    ProductEntity.validateCreation({
+      ...productData,
+      stock: totalStock,
+      variants: [],
+    });
+  }
+
+  private async initializeMasterInventory(product: Product): Promise<void> {
+    await this.inventoryRepository.save({
+      id: crypto.randomUUID(),
+      variantId: product.id,
+      variantSku: `MASTER-${product.id.slice(0, 8).toUpperCase()}`,
+      productId: product.id,
+      productName: product.name,
+      category: product.category || "General",
+      stock: product.stock,
+      reserved: 0,
+      available: product.stock,
+      minStock: 0,
+      maxStock: 9999,
+      status: product.stock > 0 ? "in_stock" : "out_of_stock",
+      lastUpdated: new Date().toISOString(),
+    });
+  }
+
+  private async processVariants(
+    productId: string,
+    inputVariants: SanitizedProductInput["variants"],
+    sellerId: string,
+  ): Promise<
+    | ProductVariant[]
+    | {
+        error: string;
+        details?: ResponseDetails[];
+        rollbackItems: ProductVariant[];
+      }
+  > {
+    const createdVariants: ProductVariant[] = [];
+    for (const variantInput of inputVariants) {
+      const variantPayload: CreateProductVariantRequest = {
+        ...(variantInput as CreateProductVariantRequest),
+        productId,
+      };
+      const variantRes = await this.variantUseCase.createVariant(
+        variantPayload,
+        sellerId,
+      );
+
+      if (!variantRes.success) {
+        return {
+          error: `Failed to create variant "${variantInput.name}": ${variantRes.error}`,
+          details: variantRes.details,
+          rollbackItems: createdVariants,
+        };
+      }
+      if (variantRes.data) {
+        createdVariants.push(variantRes.data as ProductVariant);
+      }
+    }
+    return createdVariants;
+  }
+
+  private async rollbackProductCreation(
+    productId: string,
+    rollbackItems: ProductVariant[],
+    sellerId: string,
+  ) {
+    for (const variant of rollbackItems) {
+      await this.variantUseCase.deleteVariant({ id: variant.id }, sellerId);
+    }
+    await this.productRepository.delete(productId);
+    await this.inventoryRepository.deleteByVariantId(productId);
+  }
+
+  private async cleanupProductResources(
+    productId: string,
+    userId: string,
+  ): Promise<void> {
+    const variantsRes = await this.variantUseCase.listVariantsByProduct({
+      productId,
+    });
+    if (variantsRes.success && variantsRes.data) {
+      for (const variant of variantsRes.data) {
+        await this.inventoryRepository.deleteByVariantId(variant.id);
+      }
+    }
+  }
+
+  private applyUpdates(
+    product: ProductEntity,
+    update: UpdateProductInput,
+  ): void {
+    if (update.name !== undefined) product.name = update.name;
+    if (update.price !== undefined) product.price = update.price;
+    if (update.stock !== undefined) product.stock = update.stock;
+    if (update.images !== undefined) product.images = update.images;
+    if (update.description !== undefined)
+      product.description = update.description;
+    if (update.category !== undefined) product.category = update.category;
+    if (update.status !== undefined) product.status = update.status;
+  }
+
+  private sortProducts(
+    products: Product[],
+    sortBy?: string,
+    sortOrder?: string,
+  ): void {
+    if (!sortBy) return;
+    const order = sortOrder === "asc" ? 1 : -1;
+    const key = sortBy as keyof Product;
+    products.sort((a, b) => {
+      const valA = a[key];
+      const valB = b[key];
+      if (valA === undefined || valB === undefined) return 0;
+      if (valA < valB) return -1 * order;
+      if (valA > valB) return 1 * order;
+      return 0;
+    });
+  }
+
+  private handleError(error: unknown): ApiResponse<never> {
+    if (error instanceof ValidationError) {
+      return StatusBuilder.fail("Validation failed", error.details);
+    }
+    if (error instanceof DomainValidationError) {
+      return StatusBuilder.fail("Validation failed", error.details);
+    }
+    const err = error as { message?: string; name?: string };
+    if (
+      err?.message?.includes("does not exist") ||
+      err?.name === "ResourceNotFoundException"
+    ) {
+      return StatusBuilder.fail(err.message || "Database resource not found.");
+    }
+    return StatusBuilder.fail(
+      error instanceof Error ? error.message : "Unknown error occurred",
+    );
   }
 }

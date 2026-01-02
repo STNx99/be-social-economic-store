@@ -1,35 +1,27 @@
 import { IInventoryRepository } from "@/domain/repositories/IInventoryRepository";
-import { 
-  InventoryItem, 
-  InventoryMovement, 
-  SlowMovingItem 
+import {
+  InventoryItem,
+  InventoryMovement,
+  SlowMovingItem,
 } from "@/utils/schemas/inventory";
-import { 
-  dynamoDBDocumentClient, 
-  DYNAMODB_TABLES 
+import {
+  dynamoDBDocumentClient,
+  DYNAMODB_TABLES,
 } from "@/infrastructure/database";
-import { 
-  GetCommand, 
-  PutCommand, 
-  QueryCommand, 
-  ScanCommand, 
-  DeleteCommand 
+import {
+  PutCommand,
+  ScanCommand,
+  DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { DynamoDBResult } from "@/infrastructure/database/dynamodb";
 
 export class InventoryRepository implements IInventoryRepository {
   private inventoryTable: string;
   private movementTable: string;
-  private productIdIndex: string;
-  private variantIdIndex: string;
-  private movementVariantIdIndex: string;
 
   constructor() {
     this.inventoryTable = DYNAMODB_TABLES.INVENTORY || "Inventory";
     this.movementTable = DYNAMODB_TABLES.INVENTORY_MOVEMENT || "InventoryMovement";
-    this.productIdIndex = process.env.DYNAMODB_INVENTORY_PRODUCT_ID_INDEX || "productId-index";
-    this.variantIdIndex = process.env.DYNAMODB_INVENTORY_VARIANT_ID_INDEX || "variantId-index";
-    this.movementVariantIdIndex = process.env.DYNAMODB_MOVEMENT_VARIANT_ID_INDEX || "variantId-index";
 
     if (!DYNAMODB_TABLES.INVENTORY) {
       console.warn(
@@ -40,12 +32,12 @@ export class InventoryRepository implements IInventoryRepository {
 
   async findByVariantId(variantId: string): Promise<InventoryItem | null> {
     const res = (await dynamoDBDocumentClient.send(
-      new QueryCommand({
+      new ScanCommand({
         TableName: this.inventoryTable,
-        IndexName: this.variantIdIndex,
-        KeyConditionExpression: "variantId = :variantId",
+        FilterExpression: "variantId = :variantId",
         ExpressionAttributeValues: { ":variantId": variantId },
-      })
+        Limit: 1,
+      }),
     )) as DynamoDBResult;
 
     return (res.Items?.[0] as InventoryItem) || null;
@@ -53,12 +45,11 @@ export class InventoryRepository implements IInventoryRepository {
 
   async findByProductId(productId: string): Promise<InventoryItem[]> {
     const res = (await dynamoDBDocumentClient.send(
-      new QueryCommand({
+      new ScanCommand({
         TableName: this.inventoryTable,
-        IndexName: this.productIdIndex,
-        KeyConditionExpression: "productId = :productId",
+        FilterExpression: "productId = :productId",
         ExpressionAttributeValues: { ":productId": productId },
-      })
+      }),
     )) as DynamoDBResult;
 
     return (res.Items as InventoryItem[]) || [];
@@ -73,7 +64,7 @@ export class InventoryRepository implements IInventoryRepository {
         new ScanCommand({
           TableName: this.inventoryTable,
           ExclusiveStartKey: lastEvaluatedKey,
-        })
+        }),
       )) as DynamoDBResult;
 
       if (res.Items) {
@@ -90,7 +81,7 @@ export class InventoryRepository implements IInventoryRepository {
       new PutCommand({
         TableName: this.inventoryTable,
         Item: inventory,
-      })
+      }),
     );
     return inventory;
   }
@@ -104,7 +95,7 @@ export class InventoryRepository implements IInventoryRepository {
         TableName: this.inventoryTable,
         Key: { id: item.id },
         ReturnValues: "ALL_OLD",
-      })
+      }),
     )) as DynamoDBResult;
 
     return !!res.Attributes;
@@ -115,19 +106,20 @@ export class InventoryRepository implements IInventoryRepository {
       new PutCommand({
         TableName: this.movementTable,
         Item: movement,
-      })
+      }),
     );
     return movement;
   }
 
-  async findMovementsByVariantId(variantId: string): Promise<InventoryMovement[]> {
+  async findMovementsByVariantId(
+    variantId: string,
+  ): Promise<InventoryMovement[]> {
     const res = (await dynamoDBDocumentClient.send(
-      new QueryCommand({
+      new ScanCommand({
         TableName: this.movementTable,
-        IndexName: this.movementVariantIdIndex,
-        KeyConditionExpression: "variantId = :variantId",
+        FilterExpression: "variantId = :variantId",
         ExpressionAttributeValues: { ":variantId": variantId },
-      })
+      }),
     )) as DynamoDBResult;
 
     return (res.Items as InventoryMovement[]) || [];
@@ -142,14 +134,16 @@ export class InventoryRepository implements IInventoryRepository {
 
     for (const item of allInventory) {
       const lastUpdated = new Date(item.lastUpdated);
-      
+
       if (lastUpdated < thresholdDate && item.stock > 0) {
         slowMovingItems.push({
           variantId: item.variantId,
           productName: item.productName,
           category: item.category,
           stock: item.stock,
-          daysSinceLastSale: Math.floor((Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24)),
+          daysSinceLastSale: Math.floor(
+            (Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24),
+          ),
           totalValue: 0,
         });
       }

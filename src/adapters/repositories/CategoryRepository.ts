@@ -26,7 +26,7 @@ export class CategoryRepository implements ICategoryRepository {
 
   private itemToCategory(item: Record<string, unknown>): Category {
     return {
-      id: item.id as string,
+      id: (item.id || item.Id) as string,
       name: item.name as string,
       description: item.description as string | undefined,
       slug: item.slug as string,
@@ -36,14 +36,26 @@ export class CategoryRepository implements ICategoryRepository {
   }
 
   async findById(id: string): Promise<Category | null> {
-    const cmd: GetCommand = new GetCommand({
-      TableName: this.tableName,
-      Key: { id },
-    });
+    try {
+      const cmd: GetCommand = new GetCommand({
+        TableName: this.tableName,
+        Key: { id },
+      });
 
-    const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
-    if (!res.Item) return null;
-    return this.itemToCategory(res.Item);
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+      if (res.Item) return this.itemToCategory(res.Item);
+    } catch (error: any) {
+      if (error.name === "ValidationException") {
+        const cmd: GetCommand = new GetCommand({
+          TableName: this.tableName,
+          Key: { Id: id },
+        });
+
+        const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+        if (res.Item) return this.itemToCategory(res.Item);
+      }
+    }
+    return null;
   }
 
   async findBySlug(slug: string): Promise<Category | null> {
@@ -95,6 +107,7 @@ export class CategoryRepository implements ICategoryRepository {
   async save(category: Category): Promise<Category> {
     const item = {
       id: category.id,
+      Id: category.id,
       name: category.name,
       description: category.description,
       slug: category.slug,
@@ -123,15 +136,30 @@ export class CategoryRepository implements ICategoryRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = (await dynamoDBDocumentClient.send(
-      new DeleteCommand({
-        TableName: this.tableName,
-        Key: { id },
-        ReturnValues: "ALL_OLD",
-      }),
-    )) as DynamoDBResult;
+    try {
+      const res = (await dynamoDBDocumentClient.send(
+        new DeleteCommand({
+          TableName: this.tableName,
+          Key: { id },
+          ReturnValues: "ALL_OLD",
+        }),
+      )) as DynamoDBResult;
 
-    return !!res.Attributes;
+      return !!res.Attributes;
+    } catch (error: any) {
+      if (error.name === "ValidationException") {
+        const res = (await dynamoDBDocumentClient.send(
+          new DeleteCommand({
+            TableName: this.tableName,
+            Key: { Id: id },
+            ReturnValues: "ALL_OLD",
+          }),
+        )) as DynamoDBResult;
+
+        return !!res.Attributes;
+      }
+      throw error;
+    }
   }
 }
 

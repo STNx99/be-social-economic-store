@@ -32,7 +32,7 @@ export class ProductRepository implements IProductRepository {
 
   private itemToProduct(item: Record<string, unknown>): Product {
     return {
-      id: item.id as string,
+      id: (item.id || item.Id) as string,
       sellerId: item.sellerId as string,
       name: item.name as string,
       description: item.description as string | undefined,
@@ -58,14 +58,26 @@ export class ProductRepository implements IProductRepository {
   }
 
   async findById(id: string): Promise<Product | null> {
-    const cmd: GetCommand = new GetCommand({
-      TableName: this.tableName,
-      Key: { id },
-    });
+    try {
+      const cmd: GetCommand = new GetCommand({
+        TableName: this.tableName,
+        Key: { id },
+      });
 
-    const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
-    if (!res.Item) return null;
-    return this.itemToProduct(res.Item);
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+      if (res.Item) return this.itemToProduct(res.Item);
+    } catch (error: any) {
+      if (error.name === "ValidationException") {
+        const cmd: GetCommand = new GetCommand({
+          TableName: this.tableName,
+          Key: { Id: id },
+        });
+
+        const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+        if (res.Item) return this.itemToProduct(res.Item);
+      }
+    }
+    return null;
   }
 
   async findAll(): Promise<Product[]> {
@@ -305,6 +317,7 @@ export class ProductRepository implements IProductRepository {
     try {
       const item = {
         id: product.id,
+        Id: product.id,
         sellerId: product.sellerId,
         name: product.name,
         description: product.description,
@@ -357,15 +370,30 @@ export class ProductRepository implements IProductRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = (await dynamoDBDocumentClient.send(
-      new DeleteCommand({
-        TableName: this.tableName,
-        Key: { id },
-        ReturnValues: "ALL_OLD",
-      }),
-    )) as DynamoDBResult;
+    try {
+      const res = (await dynamoDBDocumentClient.send(
+        new DeleteCommand({
+          TableName: this.tableName,
+          Key: { id },
+          ReturnValues: "ALL_OLD",
+        }),
+      )) as DynamoDBResult;
 
-    return !!res.Attributes;
+      return !!res.Attributes;
+    } catch (error: any) {
+      if (error.name === "ValidationException") {
+        const res = (await dynamoDBDocumentClient.send(
+          new DeleteCommand({
+            TableName: this.tableName,
+            Key: { Id: id },
+            ReturnValues: "ALL_OLD",
+          }),
+        )) as DynamoDBResult;
+
+        return !!res.Attributes;
+      }
+      throw error;
+    }
   }
 
   async findByIds(ids: string[]): Promise<Product[]> {
@@ -379,14 +407,26 @@ export class ProductRepository implements IProductRepository {
     const allItems: Record<string, unknown>[] = [];
 
     for (const batch of batches) {
-      const promises = batch.map((id: string) =>
-        dynamoDBDocumentClient.send(
-          new GetCommand({
-            TableName: this.tableName,
-            Key: { id },
-          }),
-        ),
-      );
+      const promises = batch.map(async (id: string) => {
+        try {
+          return await dynamoDBDocumentClient.send(
+            new GetCommand({
+              TableName: this.tableName,
+              Key: { id },
+            }),
+          );
+        } catch (error: any) {
+          if (error.name === "ValidationException") {
+            return await dynamoDBDocumentClient.send(
+              new GetCommand({
+                TableName: this.tableName,
+                Key: { Id: id },
+              }),
+            );
+          }
+          throw error;
+        }
+      });
 
       const results = await Promise.all(promises);
       results.forEach((res) => {

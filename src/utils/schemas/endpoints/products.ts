@@ -16,6 +16,14 @@ export const CreateProductRequestSchema = z.object({
   images: z.array(URLSchema).default([]),
   category: z.string().max(100).optional(),
   status: productStatusEnum.optional().default('pending'),
+  variants: z.array(z.object({
+    name: z.string().min(1).max(200),
+    sku: z.string().min(1).max(100),
+    price: PositiveNumberSchema,
+    stock: z.number().int().min(0),
+    attributes: z.record(z.string(), z.any()),
+    imageUrl: URLSchema.optional(),
+  })).optional().default([]),
 });
 
 /**
@@ -46,6 +54,15 @@ export const UpdateProductRequestSchema = z.object({
   images: z.array(URLSchema).optional(),
   category: z.string().max(100).optional(),
   status: productStatusEnum.optional(),
+  variants: z.array(z.object({
+    id: IDSchema.optional(),
+    name: z.string().min(1).max(200).optional(),
+    sku: z.string().min(1).max(100).optional(),
+    price: PositiveNumberSchema.optional(),
+    stock: z.number().int().min(0).optional(),
+    attributes: z.record(z.string(), z.any()).optional(),
+    imageUrl: URLSchema.optional(),
+  })).optional(),
 });
 
 /**

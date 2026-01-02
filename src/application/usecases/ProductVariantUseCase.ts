@@ -1,6 +1,7 @@
 import { IProductVariantUseCase } from "@/domain/usecases/IProductVariantUseCase";
 import { IProductVariantRepository } from "@/domain/repositories/IProductVariantRepository";
 import { IProductRepository } from "@/domain/repositories/IProductRepository";
+import { IInventoryRepository } from "@/domain/repositories/IInventoryRepository";
 import { StatusBuilder, validateData, ValidationError } from "@/utils";
 import {
   CreateProductVariantRequest,
@@ -24,6 +25,7 @@ export class ProductVariantUseCase implements IProductVariantUseCase {
   constructor(
     private variantRepository: IProductVariantRepository,
     private productRepository: IProductRepository,
+    private inventoryRepository: IInventoryRepository,
   ) {}
 
   async createVariant(
@@ -43,9 +45,8 @@ export class ProductVariantUseCase implements IProductVariantUseCase {
         return StatusBuilder.fail("Forbidden: You do not own this product");
       }
 
-      // Check if SKU already exists
       const existingSku = await this.variantRepository.findBySku(validatedInput.sku);
-      if (existingSku) {
+      if (existingSku && existingSku.productId === validatedInput.productId) {
         return StatusBuilder.fail("SKU already exists", [
           { field: "sku", message: "A variant with this SKU already exists" },
         ]);
@@ -54,11 +55,29 @@ export class ProductVariantUseCase implements IProductVariantUseCase {
       const variant = {
         ...validatedInput,
         id: crypto.randomUUID(),
+        isActive: validatedInput.isActive ?? true,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
       const savedVariant = await this.variantRepository.save(variant);
+
+      await this.inventoryRepository.save({
+        id: crypto.randomUUID(),
+        variantId: savedVariant.id,
+        variantSku: savedVariant.sku,
+        productId: savedVariant.productId,
+        productName: `${product.name} - ${savedVariant.name}`,
+        category: product.category || "General",
+        stock: savedVariant.stock,
+        reserved: 0,
+        available: savedVariant.stock,
+        minStock: 0,
+        maxStock: 9999,
+        status: savedVariant.stock > 0 ? "in_stock" : "out_of_stock",
+        lastUpdated: new Date().toISOString(),
+      });
+
       return StatusBuilder.ok(savedVariant);
     } catch (error) {
       if (error instanceof ValidationError) {
@@ -115,7 +134,7 @@ export class ProductVariantUseCase implements IProductVariantUseCase {
       // Check SKU uniqueness if it's being updated
       if (validatedUpdate.sku && validatedUpdate.sku !== existingVariant.sku) {
         const existingSku = await this.variantRepository.findBySku(validatedUpdate.sku);
-        if (existingSku) {
+        if (existingSku && existingSku.productId === existingVariant.productId) {
           return StatusBuilder.fail("SKU already exists", [
             { field: "sku", message: "A variant with this SKU already exists" },
           ]);
@@ -129,6 +148,21 @@ export class ProductVariantUseCase implements IProductVariantUseCase {
       };
 
       const savedVariant = await this.variantRepository.save(updatedVariant);
+
+      // Sync with inventory if stock was updated
+      if (validatedUpdate.stock !== undefined) {
+        const inventoryItem = await this.inventoryRepository.findByVariantId(savedVariant.id);
+        if (inventoryItem) {
+          await this.inventoryRepository.save({
+            ...inventoryItem,
+            stock: savedVariant.stock,
+            available: savedVariant.stock - inventoryItem.reserved,
+            status: savedVariant.stock <= 0 ? 'out_of_stock' : (savedVariant.stock <= inventoryItem.minStock ? 'low_stock' : 'in_stock'),
+            lastUpdated: new Date().toISOString(),
+          });
+        }
+      }
+
       return StatusBuilder.ok(savedVariant);
     } catch (error) {
       if (error instanceof ValidationError) {
@@ -152,7 +186,6 @@ export class ProductVariantUseCase implements IProductVariantUseCase {
         return StatusBuilder.fail("Product variant not found");
       }
 
-      // Check product ownership
       const product = await this.productRepository.findById(variant.productId);
       if (!product || product.sellerId !== userId) {
         return StatusBuilder.fail("Forbidden: You do not own the product for this variant");
@@ -162,6 +195,8 @@ export class ProductVariantUseCase implements IProductVariantUseCase {
       if (!deleted) {
         return StatusBuilder.fail("Failed to delete product variant");
       }
+
+      await this.inventoryRepository.deleteByVariantId(variant.id);
 
       return StatusBuilder.ok(undefined);
     } catch (error) {

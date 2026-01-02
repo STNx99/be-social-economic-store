@@ -17,7 +17,7 @@ export const ProductVariantSchema = z.object({
   name: NonEmptyStringSchema.max(200, 'Variant name must be less than 200 characters'),
   price: PositiveNumberSchema,
   stock: z.number().int().min(0, 'Stock cannot be negative'),
-  attributes: z.record(z.string(), z.string()),
+  attributes: z.record(z.string(), z.any()).optional().default({}),
   imageUrl: URLSchema.optional(),
   isActive: z.boolean().default(true),
 }).refine(...entityDateRefinement);
@@ -31,7 +31,7 @@ export const CreateProductVariantSchema = z.object({
   name: NonEmptyStringSchema.max(200, 'Variant name must be less than 200 characters'),
   price: PositiveNumberSchema,
   stock: z.number().int().min(0, 'Stock cannot be negative'),
-  attributes: z.record(z.string(), z.string()),
+  attributes: z.record(z.string(), z.any()).optional().default({}),
   imageUrl: URLSchema.optional(),
   isActive: z.boolean().optional().default(true)
 });
@@ -44,7 +44,7 @@ export const UpdateProductVariantSchema = z.object({
   name: NonEmptyStringSchema.max(200, 'Variant name must be less than 200 characters').optional(),
   price: PositiveNumberSchema.optional(),
   stock: z.number().int().min(0, 'Stock cannot be negative').optional(),
-  attributes: z.record(z.string(), z.string()).optional(),
+  attributes: z.record(z.string(), z.any()).optional(),
   imageUrl: URLSchema.optional(),
   isActive: z.boolean().optional()
 }).refine(...atLeastOneFieldRefinement);

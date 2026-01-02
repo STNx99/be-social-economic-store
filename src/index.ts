@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { setupUserRoutes } from "./infrastructure/routes/userRoutes";
 import { setupAuthRoutes } from "./infrastructure/routes/authRoutes";
+import { setupProductVariantRoutes } from "./infrastructure/routes/productVariantRoutes";
 import { setupProductRoutes } from "./infrastructure/routes/productRoutes";
 import { setupCategoryRoutes } from "./infrastructure/routes/categoryRoutes";
 import { setupOrderRoutes } from "./infrastructure/routes/orderRoutes";
@@ -10,9 +11,8 @@ import { setupReportRoutes } from "./infrastructure/routes/reportRoutes";
 import { setupCartRoutes } from "./infrastructure/routes/cartRoutes";
 import { setupUploadRoutes } from "./infrastructure/routes/uploadRoutes";
 import { setUpWebsocketRoute } from "./infrastructure/routes/wsRoutes";
-import { InventoryRoutes } from "./infrastructure/routes/inventoryRoutes";
-import { ReviewRoutes } from "./infrastructure/routes/reviewRoutes";
-import { ProductVariantRoutes } from "./infrastructure/routes/productVariantRoutes";
+import { setupInventoryRoutes } from "./infrastructure/routes/inventoryRoutes";
+import { setupReviewRoutes } from "./infrastructure/routes/reviewRoutes";
 import { websocket } from "hono/bun";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -25,9 +25,9 @@ const IS_DYNAMO =
 if (IS_DYNAMO) {
   const failOnInit = process.env.DYNAMODB_FAIL_ON_INIT === "true";
 }
-const allowOrigins = process.env.ALLOW_ORIGINS 
+const allowOrigins = process.env.ALLOW_ORIGINS;
 
-app.use(logger())
+app.use(logger());
 app.use(
   "*",
   cors({
@@ -42,6 +42,7 @@ app.use(
 
 setupUserRoutes(app);
 setupAuthRoutes(app);
+setupProductVariantRoutes(app);
 setupProductRoutes(app);
 setupCategoryRoutes(app);
 setupOrderRoutes(app);
@@ -51,9 +52,8 @@ setupReportRoutes(app);
 setupCartRoutes(app);
 setupUploadRoutes(app);
 setUpWebsocketRoute(app);
-new InventoryRoutes(app);
-new ReviewRoutes(app);
-new ProductVariantRoutes(app);
+setupInventoryRoutes(app);
+setupReviewRoutes(app);
 
 // 404 handler
 app.notFound((c) => {

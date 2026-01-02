@@ -1,7 +1,9 @@
 import { Context } from "hono";
 import {
   CreateProductRequest,
+  CreateProductRequestSchema,
   UpdateProductRequest,
+  UpdateProductRequestSchema,
   DeleteProductRequest,
   ListProductsRequest,
   ListProductsRequestSchema,
@@ -21,9 +23,11 @@ export class ProductController {
         return c.json(StatusBuilder.fail("Unauthorized: User ID not found"), 401);
       }
 
-      const body = (await c.req.json()) as CreateProductRequest;
-      console.log(body)
+      const json = await c.req.json();
+      console.log("[ProductController] Incoming JSON:", JSON.stringify(json, null, 2));
+      const body = CreateProductRequestSchema.parse(json);
       const response = await this.productUseCase.createProduct(body, userId);
+      console.log(response)
 
       if (response.success) {
         return c.json(response, 201);
@@ -31,6 +35,16 @@ export class ProductController {
         return c.json(response, 400);
       }
     } catch (error: unknown) {
+      console.error("[ProductController] Error in createProduct:", error);
+      if (error instanceof Error && error.name === "ZodError") {
+        return c.json(
+          StatusBuilder.fail("Validation failed", (error as any).issues.map((i: any) => ({
+            field: i.path.join("."),
+            message: i.message
+          }))),
+          400
+        );
+      }
       return c.json(
         StatusBuilder.fail(
           error instanceof Error ? error.message : "Internal Server Error",
@@ -75,7 +89,8 @@ export class ProductController {
       }
 
       const id = c.req.param("id");
-      const body = (await c.req.json()) as UpdateProductRequest;
+      const json = await c.req.json();
+      const body = UpdateProductRequestSchema.parse(json);
       const response = await this.productUseCase.updateProduct(id, body, userId);
 
       if (response.success) {
@@ -84,6 +99,15 @@ export class ProductController {
         return c.json(response, 400);
       }
     } catch (error: unknown) {
+      if (error instanceof Error && error.name === "ZodError") {
+        return c.json(
+          StatusBuilder.fail("Validation failed", (error as any).issues.map((i: any) => ({
+            field: i.path.join("."),
+            message: i.message
+          }))),
+          400
+        );
+      }
       console.error(error);
       return c.json(
         StatusBuilder.fail(

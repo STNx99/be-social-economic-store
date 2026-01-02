@@ -25,7 +25,6 @@ import { MockPaymentRepository } from "@/adapters/repositories/MockPaymentReposi
 import { MockShipmentRepository } from "@/adapters/repositories/MockShipmentRepository";
 import { CartRepository } from "@/adapters/repositories/CartRepository";
 import { WsRepository } from "@/adapters/repositories/WsRepository";
-import { UserUseCase } from "@/application/usecases/UserUseCase";
 import { AuthUseCase } from "@/application/usecases/AuthUseCase";
 import { WsUseCase } from "@/application/usecases/WsUseCase";
 import { ProductUseCase } from "@/application/usecases/ProductUseCase";
@@ -59,6 +58,7 @@ import { ProductVariantController } from "@/adapters/controllers/ProductVariantC
 import { IUploadUseCase } from "@/domain/usecases/IUploadUseCase";
 import { UploadUseCase } from "@/application/usecases/UploadUseCase";
 import { UploadController } from "@/adapters/controllers/UploadController";
+import { UserUseCase } from "@/application/usecases/UserUseCase";
 
 export class Container {
   private static instance: Container;
@@ -117,10 +117,17 @@ export class Container {
     this.userUseCase = new UserUseCase(this.userRepository);
     this.authUseCase = new AuthUseCase(this.userRepository);
     this.wsUseCase = new WsUseCase(this.wsRepository);
+    this.productVariantUseCase = new ProductVariantUseCase(
+      this.productVariantRepository,
+      this.productRepository,
+      this.inventoryRepository,
+    );
     this.productUseCase = new ProductUseCase(
       this.productRepository,
       this.s3Service,
       this.categoryRepository,
+      this.inventoryRepository,
+      this.productVariantUseCase,
     );
     this.categoryUseCase = new CategoryUseCase(
       this.categoryRepository,
@@ -132,16 +139,17 @@ export class Container {
       this.cartRepository,
       this.productRepository,
     );
-    this.inventoryUseCase = new InventoryUseCase(this.inventoryRepository);
+    this.inventoryUseCase = new InventoryUseCase(
+      this.inventoryRepository,
+      this.productRepository,
+      this.productVariantRepository,
+    );
     this.reviewUseCase = new ReviewUseCase(
       this.reviewRepository,
       this.orderRepository,
       this.userRepository,
     );
-    this.productVariantUseCase = new ProductVariantUseCase(
-      this.productVariantRepository,
-      this.productRepository,
-    );
+
     this.uploadUseCase = new UploadUseCase(this.s3Service);
 
     this.userController = new UserController(this.userUseCase);

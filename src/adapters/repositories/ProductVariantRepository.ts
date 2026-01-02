@@ -3,6 +3,7 @@ import {
   PutCommand,
   DeleteCommand,
   QueryCommand,
+  ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { ProductVariant } from "@/utils/schemas/productVariant";
 import { IProductVariantRepository } from "../../domain/repositories/IProductVariantRepository";
@@ -26,7 +27,7 @@ export class ProductVariantRepository implements IProductVariantRepository {
 
   private itemToVariant(item: Record<string, unknown>): ProductVariant {
     return {
-      id: item.id as string,
+      id: (item.id || item.Id) as string,
       productId: item.productId as string,
       sku: item.sku as string,
       name: item.name as string,
@@ -45,47 +46,88 @@ export class ProductVariantRepository implements IProductVariantRepository {
   }
 
   async findById(id: string): Promise<ProductVariant | null> {
-    const cmd = new GetCommand({
-      TableName: this.tableName,
-      Key: { id },
-    });
-
-    const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
-    if (!res.Item) return null;
-    return this.itemToVariant(res.Item);
+    try {
+      const cmd = new GetCommand({
+        TableName: this.tableName,
+        Key: { id },
+      });
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+      if (res.Item) return this.itemToVariant(res.Item);
+    } catch (error: any) {
+      if (error.name === "ValidationException") {
+        const cmd = new GetCommand({
+          TableName: this.tableName,
+          Key: { Id: id },
+        });
+        const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+        if (res.Item) return this.itemToVariant(res.Item);
+      }
+    }
+    return null;
   }
 
   async findByProductId(productId: string): Promise<ProductVariant[]> {
-    const cmd = new QueryCommand({
-      TableName: this.tableName,
-      IndexName: this.productIdIndex,
-      KeyConditionExpression: "productId = :productId",
-      ExpressionAttributeValues: { ":productId": productId },
-    });
+    try {
+      const cmd = new QueryCommand({
+        TableName: this.tableName,
+        IndexName: this.productIdIndex,
+        KeyConditionExpression: "productId = :productId",
+        ExpressionAttributeValues: { ":productId": productId },
+      });
 
-    const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
-    return (res.Items ?? []).map((item) =>
-      this.itemToVariant(item as Record<string, unknown>),
-    );
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+      return (res.Items ?? []).map((item) =>
+        this.itemToVariant(item as Record<string, unknown>),
+      );
+    } catch (error: any) {
+      if (error.name === "ValidationException" || error.message?.includes("index")) {
+        const cmd = new ScanCommand({
+          TableName: this.tableName,
+          FilterExpression: "productId = :productId",
+          ExpressionAttributeValues: { ":productId": productId },
+        });
+        const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+        return (res.Items ?? []).map((item) =>
+          this.itemToVariant(item as Record<string, unknown>),
+        );
+      }
+      throw error;
+    }
   }
 
   async findBySku(sku: string): Promise<ProductVariant | null> {
-    const cmd = new QueryCommand({
-      TableName: this.tableName,
-      IndexName: this.skuIndex,
-      KeyConditionExpression: "sku = :sku",
-      ExpressionAttributeValues: { ":sku": sku },
-    });
+    try {
+      const cmd = new QueryCommand({
+        TableName: this.tableName,
+        IndexName: this.skuIndex,
+        KeyConditionExpression: "sku = :sku",
+        ExpressionAttributeValues: { ":sku": sku },
+      });
 
-    const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
-    if (!res.Items || res.Items.length === 0) return null;
-    return this.itemToVariant(res.Items[0] as Record<string, unknown>);
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+      if (!res.Items || res.Items.length === 0) return null;
+      return this.itemToVariant(res.Items[0] as Record<string, unknown>);
+    } catch (error: any) {
+      if (error.name === "ValidationException" || error.message?.includes("index")) {
+        const cmd = new ScanCommand({
+          TableName: this.tableName,
+          FilterExpression: "sku = :sku",
+          ExpressionAttributeValues: { ":sku": sku },
+        });
+        const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+        if (!res.Items || res.Items.length === 0) return null;
+        return this.itemToVariant(res.Items[0] as Record<string, unknown>);
+      }
+      throw error;
+    }
   }
 
   async save(variant: ProductVariant): Promise<ProductVariant> {
     try {
       const item = {
         ...variant,
+        id: variant.id,
+        Id: variant.id, // Ensure both casings are provided for the Partition Key
         createdAt:
           variant.createdAt instanceof Date
             ? variant.createdAt.toISOString()
@@ -95,6 +137,8 @@ export class ProductVariantRepository implements IProductVariantRepository {
             ? variant.updatedAt.toISOString()
             : new Date(variant.updatedAt).toISOString(),
       };
+
+      console.log(`[ProductVariantRepository] Saving item to ${this.tableName}:`, JSON.stringify(item, null, 2));
 
       await dynamoDBDocumentClient.send(
         new PutCommand({
@@ -131,14 +175,27 @@ export class ProductVariantRepository implements IProductVariantRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = (await dynamoDBDocumentClient.send(
-      new DeleteCommand({
-        TableName: this.tableName,
-        Key: { id },
-        ReturnValues: "ALL_OLD",
-      }),
-    )) as DynamoDBResult;
-
-    return !!res.Attributes;
+    try {
+      const res = (await dynamoDBDocumentClient.send(
+        new DeleteCommand({
+          TableName: this.tableName,
+          Key: { id },
+          ReturnValues: "ALL_OLD",
+        }),
+      )) as DynamoDBResult;
+      return !!res.Attributes;
+    } catch (error: any) {
+      if (error.name === "ValidationException") {
+        const res = (await dynamoDBDocumentClient.send(
+          new DeleteCommand({
+            TableName: this.tableName,
+            Key: { Id: id },
+            ReturnValues: "ALL_OLD",
+          }),
+        )) as DynamoDBResult;
+        return !!res.Attributes;
+      }
+      throw error;
+    }
   }
 }
