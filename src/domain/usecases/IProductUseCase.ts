@@ -37,6 +37,10 @@ export interface IProductUseCase {
     userId?: string,
     role?: string,
   ): Promise<ListProductsResponse>;
+  listUserProducts(
+    request: ListProductsRequest,
+    userId: string,
+  ): Promise<ListProductsResponse>;
   generatePresignedUrl(
     request: GeneratePresignedUrlRequest,
   ): Promise<GeneratePresignedUrlResponse>;

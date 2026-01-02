@@ -153,6 +153,42 @@ export class ProductController {
     }
   }
 
+  async listUserProducts(c: Context) {
+    try {
+      const userId = c.get("userId") as string;
+      if (!userId) {
+        return c.json(StatusBuilder.fail("Unauthorized: User ID not found"), 401);
+      }
+
+      const query = c.req.query();
+      const request: ListProductsRequest = {
+        page: query.page ? parseInt(query.page) : 1,
+        limit: query.limit ? parseInt(query.limit) : 10,
+        category: query.category,
+        status: query.status as ProductStatus | undefined,
+        search: query.search,
+      };
+
+      const response = await this.productUseCase.listUserProducts(
+        request,
+        userId,
+      );
+
+      if (response.success) {
+        return c.json(response, 200);
+      } else {
+        return c.json(response, 400);
+      }
+    } catch (error: unknown) {
+      return c.json(
+        StatusBuilder.fail(
+          error instanceof Error ? error.message : "Internal Server Error",
+        ),
+        500,
+      );
+    }
+  }
+
   async generatePresignedUrl(c: Context) {
     try {
       const body = (await c.req.json()) as GeneratePresignedUrlRequest;

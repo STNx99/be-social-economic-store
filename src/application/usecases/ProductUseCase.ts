@@ -368,31 +368,47 @@ export class ProductUseCase implements IProductUseCase {
       const limit = request.limit || 10;
       const skip = (page - 1) * limit;
 
-      let products: Product[];
+      const products = await this.productRepository.list({
+        category: request.category,
+        status: request.status,
+        search: request.search,
+        isAdmin: role === "admin",
+      });
 
-      if (request.category) {
-        products = await this.productRepository.findByCategory(
-          request.category,
-        );
-      } else if (request.status) {
-        products = await this.productRepository.findByStatus(request.status);
-      } else if (request.search) {
-        products = await this.productRepository.searchByName(request.search);
-      } else {
-        products = await this.productRepository.findAll();
-      }
+      const total = products.length;
+      const paginatedProducts = products.slice(skip, skip + limit);
+      const totalPages = Math.ceil(total / limit);
 
-      let filteredProducts = products;
-      if (role !== "admin") {
-        filteredProducts = products.filter((p) => {
-          if (p.status === "active") return true;
-          if (userId && p.sellerId === userId) return true;
-          return false;
-        });
-      }
+      return StatusBuilder.paginated(paginatedProducts, {
+        page,
+        limit,
+        total,
+        totalPages,
+      });
+    } catch (error) {
+      return StatusBuilder.fail(
+        error instanceof Error ? error.message : "Unknown error occurred",
+      );
+    }
+  }
 
-      const total = filteredProducts.length;
-      const paginatedProducts = filteredProducts.slice(skip, skip + limit);
+  async listUserProducts(
+    request: ListProductsRequest,
+    userId: string,
+  ): Promise<ListProductsResponse> {
+    try {
+      const page = request.page || 1;
+      const limit = request.limit || 10;
+      const skip = (page - 1) * limit;
+
+      const products = await this.productRepository.findBySellerId(userId, {
+        category: request.category,
+        status: request.status,
+        search: request.search,
+      });
+
+      const total = products.length;
+      const paginatedProducts = products.slice(skip, skip + limit);
       const totalPages = Math.ceil(total / limit);
 
       return StatusBuilder.paginated(paginatedProducts, {

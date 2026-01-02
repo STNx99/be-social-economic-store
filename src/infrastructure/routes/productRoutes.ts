@@ -19,6 +19,7 @@ export function setupProductRoutes(app: Hono) {
     productController.approveProduct(c),
   );
   app.post("/api/products", (c) => productController.createProduct(c));
+  app.get("/api/products/user", (c) => productController.listUserProducts(c));
   app.get("/api/products", (c) => productController.listProducts(c));
   app.get("/api/products/:id", (c) => productController.getProduct(c));
   app.put("/api/products/:id", (c) => productController.updateProduct(c));
