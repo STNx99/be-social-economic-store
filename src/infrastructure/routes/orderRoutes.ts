@@ -10,6 +10,7 @@ export function setupOrderRoutes(app: Hono) {
   const orderController = container.getOrderController();
 
   app.post("/api/orders", (c) => orderController.createOrder(c));
+  app.post("/api/orders/checkout", (c) => orderController.checkout(c));
   app.get("/api/orders/my-orders", (c) => orderController.listCustomerOrders(c));
 
   app.get("/api/orders/seller-orders", (c) => orderController.listSellerOrders(c));

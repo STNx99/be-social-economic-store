@@ -21,8 +21,8 @@ import { UserRepository } from "@/adapters/repositories/UserRepository";
 import { ProductRepository } from "@/adapters/repositories/ProductRepository";
 import { CategoryRepository } from "@/adapters/repositories/CategoryRepository";
 import { OrderRepository } from "@/adapters/repositories/OrderRepository";
-import { MockPaymentRepository } from "@/adapters/repositories/MockPaymentRepository";
-import { MockShipmentRepository } from "@/adapters/repositories/MockShipmentRepository";
+import { PaymentRepository } from "@/adapters/repositories/PaymentRepository";
+import { ShipmentRepository } from "@/adapters/repositories/ShipmentRepository";
 import { CartRepository } from "@/adapters/repositories/CartRepository";
 import { WsRepository } from "@/adapters/repositories/WsRepository";
 import { AuthUseCase } from "@/application/usecases/AuthUseCase";
@@ -105,8 +105,8 @@ export class Container {
     this.productRepository = new ProductRepository();
     this.categoryRepository = new CategoryRepository();
     this.orderRepository = new OrderRepository();
-    this.paymentRepository = new MockPaymentRepository();
-    this.shipmentRepository = new MockShipmentRepository();
+    this.paymentRepository = new PaymentRepository();
+    this.shipmentRepository = new ShipmentRepository();
     this.cartRepository = new CartRepository();
     this.inventoryRepository = new InventoryRepository();
     this.reviewRepository = new ReviewRepository();
@@ -132,13 +132,14 @@ export class Container {
     this.categoryUseCase = new CategoryUseCase(
       this.categoryRepository,
     );
+    this.paymentUseCase = new PaymentUseCase(this.paymentRepository, this.orderRepository);
     this.orderUseCase = new OrderUseCase(
       this.orderRepository,
       this.cartRepository,
       this.productRepository,
       this.productVariantRepository,
+      this.paymentUseCase,
     );
-    this.paymentUseCase = new PaymentUseCase(this.paymentRepository, this.orderRepository);
     this.shipmentUseCase = new ShipmentUseCase(this.shipmentRepository, this.orderRepository);
     this.cartUseCase = new CartUseCase(
       this.cartRepository,

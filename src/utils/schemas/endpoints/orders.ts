@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { OrderSchema, OrderStatusSchema, OrderItemSchema } from "../order";
+import { PaymentMethodSchema } from "../payment";
 import { IDSchema, PositiveNumberSchema } from "../common";
 import { createEndpointResponseSchema } from "../responses/common";
 
@@ -29,6 +30,7 @@ export const ListOrdersResponseSchema = createEndpointResponseSchema(z.array(Ord
 
 export const CheckoutRequestSchema = z.object({
   shippingAddress: z.string().min(1),
+  paymentMethod: PaymentMethodSchema,
   notes: z.string().max(500).optional(),
 });
 

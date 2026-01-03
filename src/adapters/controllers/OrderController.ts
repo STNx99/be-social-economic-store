@@ -2,9 +2,34 @@ import { Context } from "hono";
 import { IOrderUseCase } from "@/domain/usecases/IOrderUseCase";
 import { StatusBuilder } from "@/utils";
 import { CreateOrderInput, OrderStatus } from "@/utils/schemas/order";
+import { CheckoutRequest } from "@/utils/schemas/endpoints/orders";
 
 export class OrderController {
   constructor(private orderUseCase: IOrderUseCase) {}
+
+  async checkout(c: Context) {
+    try {
+      const userId = c.get("userId") as string;
+      if (!userId) {
+        return c.json(StatusBuilder.fail("Unauthorized: User ID not found"), 401);
+      }
+
+      const body = (await c.req.json()) as CheckoutRequest;
+      const response = await this.orderUseCase.checkout(userId, body);
+
+      if (response.success) {
+        return c.json(response, 201);
+      } else {
+        return c.json(response, 400);
+      }
+    } catch (error: unknown) {
+      const err = error as Error;
+      return c.json(
+        StatusBuilder.fail(err.message || "Internal Server Error"),
+        500
+      );
+    }
+  }
 
   async createOrder(c: Context) {
     try {

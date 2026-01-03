@@ -21,6 +21,7 @@ import {
 import { ICartRepository } from "@/domain/repositories/ICartRepository";
 import { IProductRepository } from "@/domain/repositories/IProductRepository";
 import { IProductVariantRepository } from "@/domain/repositories/IProductVariantRepository";
+import { IPaymentUseCase } from "@/domain/usecases/IPaymentUseCase";
 import { SalesReportQuery, SalesReportResponse } from "@/utils/schemas/endpoints/reports";
 
 export class OrderUseCase implements IOrderUseCase {
@@ -29,6 +30,7 @@ export class OrderUseCase implements IOrderUseCase {
     private cartRepository: ICartRepository,
     private productRepository: IProductRepository,
     private variantRepository: IProductVariantRepository,
+    private paymentUseCase: IPaymentUseCase,
   ) {}
 
   async checkout(userId: string, input: CheckoutRequest): Promise<CheckoutResponse> {
@@ -85,6 +87,15 @@ export class OrderUseCase implements IOrderUseCase {
         ordersToCreate,
         cart.id,
       );
+
+      for (const order of createdOrders) {
+        await this.paymentUseCase.createPayment({
+          orderId: order.id,
+          amount: order.totalAmount,
+          method: input.paymentMethod,
+          notes: input.notes,
+        });
+      }
 
       return StatusBuilder.ok(createdOrders[0]);
     } catch (error) {
