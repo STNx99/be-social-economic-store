@@ -3,6 +3,7 @@ import { IDSchema, DateSchema, NonEmptyStringSchema, PositiveNumberSchema } from
 
 export const CartItemSchema = z.object({
   productId: IDSchema,
+  variantId: IDSchema.optional(),
   quantity: z.number().int().positive('Quantity must be greater than 0'),
   price: PositiveNumberSchema,
   name: NonEmptyStringSchema,
@@ -25,16 +26,19 @@ export const CartSchema = z.object({
 
 export const AddToCartRequestSchema = z.object({
   productId: IDSchema,
+  variantId: IDSchema.optional(),
   quantity: z.number().int().positive('Quantity must be greater than 0'),
 });
 
 export const UpdateCartItemSchema = z.object({
   productId: IDSchema,
+  variantId: IDSchema.optional(),
   quantity: z.number().int().positive('Quantity must be greater than 0'),
 });
 
 export const RemoveFromCartRequestSchema = z.object({
   productId: IDSchema,
+  variantId: IDSchema.optional(),
 });
 
 export const CartIdParamSchema = z.object({

@@ -6,6 +6,7 @@ import { IOrderRepository } from "@/domain/repositories/IOrderRepository";
 import { IOrderUseCase } from "@/domain/usecases/IOrderUseCase";
 import { StatusBuilder } from "@/utils";
 import {
+  Order,
   OrderStatus,
   CreateOrderInput,
 } from "@/utils/schemas/order";
@@ -14,11 +15,84 @@ import {
   GetOrderResponse,
   ListOrdersResponse,
   UpdateOrderStatusResponse,
+  CheckoutRequest,
+  CheckoutResponse,
 } from "@/utils/schemas/endpoints/orders";
+import { ICartRepository } from "@/domain/repositories/ICartRepository";
+import { IProductRepository } from "@/domain/repositories/IProductRepository";
+import { IProductVariantRepository } from "@/domain/repositories/IProductVariantRepository";
 import { SalesReportQuery, SalesReportResponse } from "@/utils/schemas/endpoints/reports";
 
 export class OrderUseCase implements IOrderUseCase {
-  constructor(private orderRepository: IOrderRepository) {}
+  constructor(
+    private orderRepository: IOrderRepository,
+    private cartRepository: ICartRepository,
+    private productRepository: IProductRepository,
+    private variantRepository: IProductVariantRepository,
+  ) {}
+
+  async checkout(userId: string, input: CheckoutRequest): Promise<CheckoutResponse> {
+    try {
+      const cart = await this.cartRepository.findByUserId(userId);
+      if (!cart || cart.items.length === 0) {
+        return StatusBuilder.fail("Cart is empty", [
+          { field: "cart", message: "No items in cart to checkout" },
+        ]);
+      }
+
+      const itemsBySeller = new Map<string, any[]>();
+
+      for (const item of cart.items) {
+        const product = await this.productRepository.findById(item.productId);
+        if (!product) {
+          return StatusBuilder.fail(`Product not found: ${item.productId}`);
+        }
+
+        const sellerId = product.sellerId;
+        if (!itemsBySeller.has(sellerId)) {
+          itemsBySeller.set(sellerId, []);
+        }
+        itemsBySeller.get(sellerId)!.push({
+          productId: item.productId,
+          variantId: item.variantId,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+        });
+      }
+
+      const ordersToCreate: Order[] = [];
+      for (const [sellerId, items] of itemsBySeller.entries()) {
+        const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+        const order = new OrderEntity(
+          crypto.randomUUID(),
+          userId,
+          sellerId,
+          items,
+          totalAmount,
+          input.shippingAddress,
+          "pending",
+          "pending",
+          input.notes,
+          new Date(),
+          new Date(),
+        );
+        ordersToCreate.push(order.toJSON());
+      }
+
+      const createdOrders = await this.orderRepository.createOrdersAndClearCart(
+        ordersToCreate,
+        cart.id,
+      );
+
+      return StatusBuilder.ok(createdOrders[0]);
+    } catch (error) {
+      return StatusBuilder.fail(
+        error instanceof Error ? error.message : "Unknown error occurred",
+      );
+    }
+  }
 
   async createOrder(input: CreateOrderInput): Promise<CreateOrderResponse> {
     try {

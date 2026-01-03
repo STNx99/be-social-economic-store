@@ -22,7 +22,7 @@ import { UserRole } from "@/utils/schemas/common";
 export function requireAuth() {
   return async (c: Context, next: Next) => {
     try {
-      const header = c.req.header("Authorization");
+      const header = c.req.header("Authorization") || c.req.header("Sec-WebSocket-Protocol");
       const token = getTokenFromAuthHeader(header);
       if (!token) {
         return c.json(StatusBuilder.fail("Unauthorized"), 401);

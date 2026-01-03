@@ -4,6 +4,8 @@ import {
   InventoryMovement,
   SlowMovingItem,
 } from "@/utils/schemas/inventory";
+import { Product } from "@/utils/schemas/product";
+import { ProductVariant } from "@/utils/schemas/productVariant";
 import {
   dynamoDBDocumentClient,
   DYNAMODB_TABLES,
@@ -14,14 +16,20 @@ import {
   DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { DynamoDBResult } from "@/infrastructure/database/dynamodb";
+import { BaseRepository } from "./BaseRepository";
 
-export class InventoryRepository implements IInventoryRepository {
+export class InventoryRepository extends BaseRepository implements IInventoryRepository {
   private inventoryTable: string;
   private movementTable: string;
+  private productTable: string;
+  private variantTable: string;
 
   constructor() {
+    super();
     this.inventoryTable = DYNAMODB_TABLES.INVENTORY || "Inventory";
     this.movementTable = DYNAMODB_TABLES.INVENTORY_MOVEMENT || "InventoryMovement";
+    this.productTable = DYNAMODB_TABLES.PRODUCT || "Product";
+    this.variantTable = process.env.DYNAMODB_TABLE_PRODUCT_VARIANTS ?? "Variant";
 
     if (!DYNAMODB_TABLES.INVENTORY) {
       console.warn(
@@ -80,7 +88,7 @@ export class InventoryRepository implements IInventoryRepository {
     await dynamoDBDocumentClient.send(
       new PutCommand({
         TableName: this.inventoryTable,
-        Item: inventory,
+        Item: this.prepareItem(inventory),
       }),
     );
     return inventory;
@@ -105,7 +113,7 @@ export class InventoryRepository implements IInventoryRepository {
     await dynamoDBDocumentClient.send(
       new PutCommand({
         TableName: this.movementTable,
-        Item: movement,
+        Item: this.prepareItem(movement),
       }),
     );
     return movement;
@@ -150,5 +158,41 @@ export class InventoryRepository implements IInventoryRepository {
     }
 
     return slowMovingItems;
+  }
+
+  async adjustInventoryWithTransaction(
+    inventoryItem: InventoryItem,
+    movement: InventoryMovement,
+    variant: ProductVariant,
+    product: Product,
+  ): Promise<void> {
+    const transactItems: any[] = [
+      {
+        Put: {
+          TableName: this.inventoryTable,
+          Item: this.prepareItem(inventoryItem),
+        },
+      },
+      {
+        Put: {
+          TableName: this.movementTable,
+          Item: this.prepareItem(movement),
+        },
+      },
+      {
+        Put: {
+          TableName: this.variantTable,
+          Item: this.prepareItem(variant),
+        },
+      },
+      {
+        Put: {
+          TableName: this.productTable,
+          Item: this.prepareItem(product),
+        },
+      },
+    ];
+
+    await this.executeTransactionWithRetry(transactItems);
   }
 }

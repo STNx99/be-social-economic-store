@@ -9,6 +9,7 @@ import {
 
 export const OrderItemSchema = z.object({
   productId: NonEmptyStringSchema,
+  variantId: z.string().optional(),
   name: NonEmptyStringSchema,
   price: PositiveNumberSchema,
   quantity: z.number().int().positive(),

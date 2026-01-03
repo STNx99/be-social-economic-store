@@ -3,6 +3,7 @@ import { CartSchema, CartItemSchema } from "../cart";
 
 export const AddToCartRequestSchema = z.object({
   productId: z.string().uuid(),
+  variantId: z.string().uuid().optional(),
   quantity: z.number().int().positive(),
 });
 
@@ -40,6 +41,7 @@ export const GetCartResponseSchema = z.object({
 
 export const UpdateCartItemRequestSchema = z.object({
   productId: z.string().uuid(),
+  variantId: z.string().uuid().optional(),
   quantity: z.number().int().positive(),
 });
 
@@ -59,6 +61,7 @@ export const UpdateCartItemResponseSchema = z.object({
 
 export const RemoveFromCartRequestSchema = z.object({
   productId: z.string().uuid(),
+  variantId: z.string().uuid().optional(),
 });
 
 export const RemoveFromCartResponseSchema = z.object({

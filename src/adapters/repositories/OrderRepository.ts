@@ -9,15 +9,19 @@ import { Order, OrderStatus, OrderItem, PaymentStatus } from "@/utils/schemas/or
 import { IOrderRepository } from "../../domain/repositories/IOrderRepository";
 import { dynamoDBDocumentClient } from "@/infrastructure/database";
 import { DynamoDBResult } from "@/infrastructure/database/dynamodb";
+import { BaseRepository } from "./BaseRepository";
 
-export class OrderRepository implements IOrderRepository {
+export class OrderRepository extends BaseRepository implements IOrderRepository {
   private tableName: string;
   private customerIndex?: string;
   private sellerIndex?: string;
   private statusIndex?: string;
+  private cartTableName: string;
 
   constructor() {
+    super()
     this.tableName = process.env.DYNAMODB_TABLE_ORDERS ?? process.env.DYNAMODB_TABLE_ORDER ?? "Order";
+    this.cartTableName = process.env.DYNAMODB_TABLE_CARTS ?? process.env.DYNAMODB_TABLE_CART ?? "Cart";
     this.customerIndex = process.env.DYNAMODB_ORDERS_CUSTOMER_INDEX;
     this.sellerIndex = process.env.DYNAMODB_ORDERS_SELLER_INDEX;
     this.statusIndex = process.env.DYNAMODB_ORDERS_STATUS_INDEX;
@@ -134,11 +138,7 @@ export class OrderRepository implements IOrderRepository {
 
   async save(order: Order): Promise<Order> {
     try {
-      const item = {
-        ...order,
-        createdAt: order.createdAt instanceof Date ? order.createdAt.toISOString() : new Date(order.createdAt).toISOString(),
-        updatedAt: order.updatedAt instanceof Date ? order.updatedAt.toISOString() : new Date(order.updatedAt).toISOString(),
-      };
+      const item = this.prepareItem(order);
 
       await dynamoDBDocumentClient.send(
         new PutCommand({
@@ -171,5 +171,31 @@ export class OrderRepository implements IOrderRepository {
     )) as DynamoDBResult;
 
     return !!res.Attributes;
+  }
+
+  async createOrdersAndClearCart(orders: Order[], cartId: string): Promise<Order[]> {
+    const transactItems: any[] = orders.map((order) => ({
+      Put: {
+        TableName: this.tableName,
+        Item: this.prepareItem(order),
+      },
+    }));
+
+    transactItems.push({
+      Update: {
+        TableName: this.cartTableName,
+        Key: { id: cartId },
+        UpdateExpression: "SET items = :emptyList, total = :zero, updatedAt = :updatedAt",
+        ExpressionAttributeValues: {
+          ":emptyList": [],
+          ":zero": 0,
+          ":updatedAt": new Date().toISOString(),
+        },
+      },
+    });
+
+    await this.executeTransactionWithRetry(transactItems);
+
+    return orders;
   }
 }

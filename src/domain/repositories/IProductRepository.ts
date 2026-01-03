@@ -26,6 +26,12 @@ export interface IProductRepository {
   save(product: Product): Promise<Product>;
   delete(id: string): Promise<boolean>;
   findByIds(ids: string[]): Promise<Product[]>;
+  createProductWithInventoryAndVariants(
+    product: Product,
+    inventory: any,
+    variants?: { variant: any; inventory: any }[],
+  ): Promise<Product>;
+  deleteProductWithResources(productId: string, variantIds: string[]): Promise<boolean>;
 }
 
 

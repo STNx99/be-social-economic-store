@@ -2,6 +2,7 @@ import { IProductVariantUseCase } from "@/domain/usecases/IProductVariantUseCase
 import { IProductVariantRepository } from "@/domain/repositories/IProductVariantRepository";
 import { IProductRepository } from "@/domain/repositories/IProductRepository";
 import { IInventoryRepository } from "@/domain/repositories/IInventoryRepository";
+import { InventoryStatus } from "@/utils/schemas/inventory";
 import { StatusBuilder, validateData, ValidationError } from "@/utils";
 import {
   CreateProductVariantRequest,
@@ -60,23 +61,26 @@ export class ProductVariantUseCase implements IProductVariantUseCase {
         updatedAt: new Date(),
       };
 
-      const savedVariant = await this.variantRepository.save(variant);
-
-      await this.inventoryRepository.save({
+      const inventory = {
         id: crypto.randomUUID(),
-        variantId: savedVariant.id,
-        variantSku: savedVariant.sku,
-        productId: savedVariant.productId,
-        productName: `${product.name} - ${savedVariant.name}`,
+        variantId: variant.id,
+        variantSku: variant.sku,
+        productId: variant.productId,
+        productName: `${product.name} - ${variant.name}`,
         category: product.category || "General",
-        stock: savedVariant.stock,
+        stock: variant.stock,
         reserved: 0,
-        available: savedVariant.stock,
+        available: variant.stock,
         minStock: 0,
         maxStock: 9999,
-        status: savedVariant.stock > 0 ? "in_stock" : "out_of_stock",
+        status: (variant.stock > 0 ? "in_stock" : "out_of_stock") as InventoryStatus,
         lastUpdated: new Date().toISOString(),
-      });
+      };
+
+      const savedVariant = await this.variantRepository.createVariantWithInventory(
+        variant,
+        inventory,
+      );
 
       return StatusBuilder.ok(savedVariant);
     } catch (error) {
@@ -191,12 +195,10 @@ export class ProductVariantUseCase implements IProductVariantUseCase {
         return StatusBuilder.fail("Forbidden: You do not own the product for this variant");
       }
 
-      const deleted = await this.variantRepository.delete(validatedParams.id);
+      const deleted = await this.variantRepository.deleteVariantWithInventory(validatedParams.id);
       if (!deleted) {
         return StatusBuilder.fail("Failed to delete product variant");
       }
-
-      await this.inventoryRepository.deleteByVariantId(variant.id);
 
       return StatusBuilder.ok(undefined);
     } catch (error) {

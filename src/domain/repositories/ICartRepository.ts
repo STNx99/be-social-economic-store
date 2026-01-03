@@ -5,10 +5,11 @@ export interface ICartRepository {
   findById(id: string): Promise<Cart | null>;
   save(cart: Cart): Promise<Cart>;
   delete(id: string): Promise<boolean>;
-  updateProductStock(productId: string, quantityToDeduct: number): Promise<void>;
+  updateProductStock(productId: string, quantityToDeduct: number, variantId?: string): Promise<void>;
   addToCartWithInventoryUpdate(
     cart: Cart,
     productId: string,
     quantity: number,
+    variantId?: string,
   ): Promise<Cart>;
 }

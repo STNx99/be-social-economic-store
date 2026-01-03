@@ -1,5 +1,6 @@
 import { ICartRepository } from "@/domain/repositories/ICartRepository";
 import { IProductRepository } from "@/domain/repositories/IProductRepository";
+import { IProductVariantRepository } from "@/domain/repositories/IProductVariantRepository";
 import { ICartUseCase } from "@/domain/usecases/ICartUseCase";
 import { CartEntity } from "@/domain/entities/Cart";
 import { validateData, ValidationError, StatusBuilder } from "@/utils";
@@ -28,6 +29,7 @@ export class CartUseCase implements ICartUseCase {
   constructor(
     private cartRepository: ICartRepository,
     private productRepository: IProductRepository,
+    private variantRepository: IProductVariantRepository,
   ) {}
 
   async addToCart(
@@ -55,11 +57,30 @@ export class CartUseCase implements ICartUseCase {
         ]);
       }
 
-      if (product.stock < validatedRequest.quantity) {
+      let stockAvailable = product.stock;
+      let price = product.price;
+      let name = product.name;
+
+      if (validatedRequest.variantId) {
+        const variant = await this.variantRepository.findById(validatedRequest.variantId);
+        if (!variant || variant.productId !== product.id) {
+          return StatusBuilder.fail("Product variant not found", [
+            {
+              field: "variantId",
+              message: "Variant does not exist for this product",
+            },
+          ]);
+        }
+        stockAvailable = variant.stock;
+        price = variant.price;
+        name = `${product.name} - ${variant.name}`;
+      }
+
+      if (stockAvailable < validatedRequest.quantity) {
         return StatusBuilder.fail("Insufficient stock", [
           {
             field: "quantity",
-            message: `Not enough stock. Available: ${product.stock}`,
+            message: `Not enough stock. Available: ${stockAvailable}`,
           },
         ]);
       }
@@ -85,17 +106,32 @@ export class CartUseCase implements ICartUseCase {
         cart = newCart.toJSON();
       }
 
-      const cartEntity = CartEntity.fromValidatedData(cart);
-
       const cartItem = {
         productId: product.id,
+        variantId: validatedRequest.variantId,
         quantity: validatedRequest.quantity,
-        price: product.price,
-        name: product.name,
+        price: price,
+        name: name,
       };
 
-      cartEntity.addItem(cartItem);
-      const updatedCart = cartEntity.toJSON();
+      const existingItemIndex = cart.items.findIndex(item => 
+        item.productId === cartItem.productId && 
+        item.variantId === cartItem.variantId
+      );
+
+      let updatedItems;
+      if (existingItemIndex !== -1) {
+        updatedItems = cart.items.map((item, index) => 
+          index === existingItemIndex 
+            ? { ...item, quantity: item.quantity + cartItem.quantity }
+            : item
+        );
+      } else {
+        updatedItems = [...cart.items, cartItem];
+      }
+
+      const total = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const updatedCart = { ...cart, items: updatedItems, total, updatedAt: new Date() };
 
       const cartRepo = this.cartRepository as CartRepository;
       if ('addToCartWithInventoryUpdate' in cartRepo) {
@@ -103,12 +139,14 @@ export class CartUseCase implements ICartUseCase {
           updatedCart,
           validatedRequest.productId,
           validatedRequest.quantity,
+          validatedRequest.variantId,
         );
       } else {
         await this.cartRepository.save(updatedCart);
         await this.cartRepository.updateProductStock(
           validatedRequest.productId,
           validatedRequest.quantity,
+          validatedRequest.variantId,
         );
       }
 
@@ -195,7 +233,10 @@ export class CartUseCase implements ICartUseCase {
         ]);
       }
 
-      const cartItem = cart.items.find((item) => item.productId === validatedRequest.productId);
+      const cartItem = cart.items.find((item) => 
+        item.productId === validatedRequest.productId && 
+        item.variantId === validatedRequest.variantId
+      );
       if (!cartItem) {
         return StatusBuilder.fail("Item not found in cart", [
           {
@@ -224,12 +265,21 @@ export class CartUseCase implements ICartUseCase {
         ]);
       }
 
+      let stockAvailable = product.stock;
+      if (validatedRequest.variantId) {
+        const variant = await this.variantRepository.findById(validatedRequest.variantId);
+        if (!variant) {
+          return StatusBuilder.fail("Variant not found");
+        }
+        stockAvailable = variant.stock;
+      }
+
       const quantityDifference = validatedRequest.quantity - cartItem.quantity;
-      if (quantityDifference > 0 && product.stock < quantityDifference) {
+      if (quantityDifference > 0 && stockAvailable < quantityDifference) {
         return StatusBuilder.fail("Insufficient stock", [
           {
             field: "quantity",
-            message: `Not enough stock. Available: ${product.stock}`,
+            message: `Not enough stock. Available: ${stockAvailable}`,
           },
         ]);
       }
@@ -243,14 +293,19 @@ export class CartUseCase implements ICartUseCase {
         ]);
       }
 
-      const cartEntity = CartEntity.fromValidatedData(cart);
-      cartEntity.updateItemQuantity(validatedRequest.productId, validatedRequest.quantity);
-      const updatedCart = cartEntity.toJSON();
+      const updatedItems = cart.items.map(item => 
+        (item.productId === validatedRequest.productId && item.variantId === validatedRequest.variantId)
+          ? { ...item, quantity: validatedRequest.quantity }
+          : item
+      );
+      const total = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const updatedCart = { ...cart, items: updatedItems, total, updatedAt: new Date() };
 
       if (quantityDifference !== 0) {
         await this.cartRepository.updateProductStock(
           validatedRequest.productId,
-          quantityDifference, 
+          quantityDifference,
+          validatedRequest.variantId,
         );
       }
 
@@ -289,7 +344,10 @@ export class CartUseCase implements ICartUseCase {
         ]);
       }
 
-      const cartItem = cart.items.find((item) => item.productId === validatedRequest.productId);
+      const cartItem = cart.items.find((item) => 
+        item.productId === validatedRequest.productId && 
+        item.variantId === validatedRequest.variantId
+      );
       if (!cartItem) {
         return StatusBuilder.fail("Item not found in cart", [
           {
@@ -299,13 +357,16 @@ export class CartUseCase implements ICartUseCase {
         ]);
       }
 
-      const cartEntity = CartEntity.fromValidatedData(cart);
-      cartEntity.removeItem(validatedRequest.productId);
-      const updatedCart = cartEntity.toJSON();
+      const items = cart.items.filter(item => 
+        !(item.productId === validatedRequest.productId && item.variantId === validatedRequest.variantId)
+      );
+      const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const updatedCart = { ...cart, items, total, updatedAt: new Date() };
 
       await this.cartRepository.updateProductStock(
         validatedRequest.productId,
         -cartItem.quantity,
+        validatedRequest.variantId,
       );
 
       await this.cartRepository.save(updatedCart);
@@ -344,6 +405,7 @@ export class CartUseCase implements ICartUseCase {
         await this.cartRepository.updateProductStock(
           item.productId,
           -item.quantity,
+          item.variantId,
         );
       }
 

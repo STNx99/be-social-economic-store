@@ -8,12 +8,14 @@ import {
 import { User, UserRole } from "@/utils";
 import { IUserRepository } from "@/domain/repositories/IUserRepository";
 import { dynamoDBDocumentClient, DynamoDBResult } from "@/infrastructure/database/dynamodb";
+import { BaseRepository } from "./BaseRepository";
 
-export class UserRepository implements IUserRepository {
+export class UserRepository extends BaseRepository implements IUserRepository {
   private tableName: string;
   private emailIndex?: string;
 
   constructor() {
+    super();
     this.tableName = process.env.DYNAMODB_TABLE_USERS ?? process.env.DYNAMODB_TABLE_USER ?? "User";
     this.emailIndex = process.env.DYNAMODB_USERS_EMAIL_INDEX;
 
@@ -86,22 +88,7 @@ export class UserRepository implements IUserRepository {
   }
 
   async save(user: User): Promise<User> {
-    const item = {
-      id: user.id,
-      Id: user.id,
-      email: user.email,
-      name: user.name,
-      password: user.password,
-      role: user.role,
-      createdAt:
-        user.createdAt instanceof Date
-          ? user.createdAt.toISOString()
-          : new Date(user.createdAt).toISOString(),
-      updatedAt:
-        user.updatedAt instanceof Date
-          ? user.updatedAt.toISOString()
-          : new Date(user.updatedAt).toISOString(),
-    };
+    const item = this.prepareItem(user);
 
     await dynamoDBDocumentClient.send(
       new PutCommand({
@@ -112,8 +99,8 @@ export class UserRepository implements IUserRepository {
 
     return {
       ...user,
-      createdAt: new Date(item.createdAt),
-      updatedAt: new Date(item.updatedAt),
+      createdAt: new Date(item.createdAt as string),
+      updatedAt: new Date(item.updatedAt as string),
     };
   }
 

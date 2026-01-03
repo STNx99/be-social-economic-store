@@ -27,6 +27,13 @@ export const UpdateOrderStatusResponseSchema = createEndpointResponseSchema(Orde
 
 export const ListOrdersResponseSchema = createEndpointResponseSchema(z.array(OrderSchema));
 
+export const CheckoutRequestSchema = z.object({
+  shippingAddress: z.string().min(1),
+  notes: z.string().max(500).optional(),
+});
+
+export const CheckoutResponseSchema = createEndpointResponseSchema(OrderSchema);
+
 export type CreateOrderRequest = z.infer<typeof CreateOrderRequestSchema>;
 export type CreateOrderResponse = z.infer<typeof CreateOrderResponseSchema>;
 export type GetOrderRequest = z.infer<typeof GetOrderRequestSchema>;
@@ -34,3 +41,5 @@ export type GetOrderResponse = z.infer<typeof GetOrderResponseSchema>;
 export type UpdateOrderStatusRequest = z.infer<typeof UpdateOrderStatusRequestSchema>;
 export type UpdateOrderStatusResponse = z.infer<typeof UpdateOrderStatusResponseSchema>;
 export type ListOrdersResponse = z.infer<typeof ListOrdersResponseSchema>;
+export type CheckoutRequest = z.infer<typeof CheckoutRequestSchema>;
+export type CheckoutResponse = z.infer<typeof CheckoutResponseSchema>;

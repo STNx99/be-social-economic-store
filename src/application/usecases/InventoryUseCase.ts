@@ -86,33 +86,41 @@ export class InventoryUseCase implements IInventoryUseCase {
         createdAt: new Date().toISOString(),
       };
 
-      await this.inventoryRepository.save(updatedItem);
-      await this.inventoryRepository.saveMovement(movement);
-
       // Sync with Product Variant
       const variant = await this.variantRepository.findById(variantId);
-      if (variant) {
-        await this.variantRepository.save({
-          ...variant,
-          stock: newStock,
-          updatedAt: new Date(),
-        });
+      if (!variant) {
+        return StatusBuilder.fail("Product variant not found") as InventoryResponse<InventoryItem>;
       }
+
+      const updatedVariant = {
+        ...variant,
+        stock: newStock,
+        updatedAt: new Date(),
+      };
 
       // Sync with Product total stock
       const product = await this.productRepository.findById(item.productId);
-      if (product) {
-        const allVariants = await this.variantRepository.findByProductId(item.productId);
-        const totalStock = allVariants.length > 0 
-          ? allVariants.reduce((sum, v) => sum + (v.id === variantId ? newStock : v.stock), 0)
-          : newStock;
-        
-        await this.productRepository.save({
-          ...product,
-          stock: totalStock,
-          updatedAt: new Date(),
-        });
+      if (!product) {
+        return StatusBuilder.fail("Product not found") as InventoryResponse<InventoryItem>;
       }
+
+      const allVariants = await this.variantRepository.findByProductId(item.productId);
+      const totalStock = allVariants.length > 0 
+        ? allVariants.reduce((sum, v) => sum + (v.id === variantId ? newStock : v.stock), 0)
+        : newStock;
+      
+      const updatedProduct = {
+        ...product,
+        stock: totalStock,
+        updatedAt: new Date(),
+      };
+
+      await this.inventoryRepository.adjustInventoryWithTransaction(
+        updatedItem,
+        movement,
+        updatedVariant,
+        updatedProduct
+      );
 
       return { success: true, data: updatedItem };
     } catch (error) {

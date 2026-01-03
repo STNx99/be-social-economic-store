@@ -8,12 +8,14 @@ import {
 import { Category } from "@/utils/schemas/category";
 import { ICategoryRepository } from "@/domain/repositories/ICategoryRepository";
 import { dynamoDBDocumentClient, DynamoDBResult } from "@/infrastructure/database/dynamodb";
+import { BaseRepository } from "./BaseRepository";
 
-export class CategoryRepository implements ICategoryRepository {
+export class CategoryRepository extends BaseRepository implements ICategoryRepository {
   private tableName: string;
   private slugIndex?: string;
 
   constructor() {
+    super();
     this.tableName = process.env.DYNAMODB_TABLE_CATEGORIES ?? process.env.DYNAMODB_TABLE_CATEGORY ?? "Category";
     this.slugIndex = process.env.DYNAMODB_CATEGORIES_SLUG_INDEX;
 
@@ -105,21 +107,7 @@ export class CategoryRepository implements ICategoryRepository {
   }
 
   async save(category: Category): Promise<Category> {
-    const item = {
-      id: category.id,
-      Id: category.id,
-      name: category.name,
-      description: category.description,
-      slug: category.slug,
-      createdAt:
-        category.createdAt instanceof Date
-          ? category.createdAt.toISOString()
-          : new Date(category.createdAt).toISOString(),
-      updatedAt:
-        category.updatedAt instanceof Date
-          ? category.updatedAt.toISOString()
-          : new Date(category.updatedAt).toISOString(),
-    };
+    const item = this.prepareItem(category);
 
     await dynamoDBDocumentClient.send(
       new PutCommand({
@@ -130,8 +118,8 @@ export class CategoryRepository implements ICategoryRepository {
 
     return {
       ...category,
-      createdAt: new Date(item.createdAt),
-      updatedAt: new Date(item.updatedAt),
+      createdAt: new Date(item.createdAt as string),
+      updatedAt: new Date(item.updatedAt as string),
     };
   }
 

@@ -132,12 +132,18 @@ export class Container {
     this.categoryUseCase = new CategoryUseCase(
       this.categoryRepository,
     );
-    this.orderUseCase = new OrderUseCase(this.orderRepository);
+    this.orderUseCase = new OrderUseCase(
+      this.orderRepository,
+      this.cartRepository,
+      this.productRepository,
+      this.productVariantRepository,
+    );
     this.paymentUseCase = new PaymentUseCase(this.paymentRepository, this.orderRepository);
     this.shipmentUseCase = new ShipmentUseCase(this.shipmentRepository, this.orderRepository);
     this.cartUseCase = new CartUseCase(
       this.cartRepository,
       this.productRepository,
+      this.productVariantRepository,
     );
     this.inventoryUseCase = new InventoryUseCase(
       this.inventoryRepository,

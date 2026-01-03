@@ -1,27 +1,24 @@
 import {
+  DeleteCommand,
   GetCommand,
   PutCommand,
-  DeleteCommand,
-  ScanCommand,
   QueryCommand,
+  ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { IReviewRepository } from "../../domain/repositories/IReviewRepository";
 import { ReviewEntity } from "../../domain/entities/Review";
 import { dynamoDBDocumentClient, DYNAMODB_TABLES } from "@/infrastructure/database";
 import { DynamoDBResult } from "@/infrastructure/database/dynamodb";
 import { Review } from "@/utils/schemas/review";
+import { BaseRepository } from "./BaseRepository";
 
-export class ReviewRepository implements IReviewRepository {
+export class ReviewRepository extends BaseRepository implements IReviewRepository {
   private tableName: string;
-  private productIdIndex: string;
-  private userIdIndex: string;
-  private orderIdIndex: string;
+  private productIdIndex?: string;
 
   constructor() {
+    super();
     this.tableName = DYNAMODB_TABLES.REVIEW || "Review";
-    this.productIdIndex = process.env.DYNAMODB_REVIEWS_PRODUCT_ID_INDEX || "productId-index";
-    this.userIdIndex = process.env.DYNAMODB_REVIEWS_USER_ID_INDEX || "userId-index";
-    this.orderIdIndex = process.env.DYNAMODB_REVIEWS_ORDER_ID_INDEX || "orderId-index";
 
     if (!DYNAMODB_TABLES.REVIEW) {
       console.warn(
@@ -49,11 +46,7 @@ export class ReviewRepository implements IReviewRepository {
   }
 
   async create(review: ReviewEntity): Promise<ReviewEntity> {
-    const item = {
-      ...review.toJSON(),
-      createdAt: review.createdAt.toISOString(),
-      updatedAt: review.updatedAt.toISOString(),
-    };
+    const item = this.prepareItem(review.toJSON());
 
     await dynamoDBDocumentClient.send(
       new PutCommand({
@@ -78,39 +71,65 @@ export class ReviewRepository implements IReviewRepository {
   }
 
   async findByProductId(productId: string): Promise<ReviewEntity[]> {
-    const cmd: QueryCommand = new QueryCommand({
-      TableName: this.tableName,
-      IndexName: this.productIdIndex,
-      KeyConditionExpression: "productId = :productId",
-      ExpressionAttributeValues: { ":productId": productId },
-    });
+    if (this.productIdIndex) {
+      const cmd: QueryCommand = new QueryCommand({
+        TableName: this.tableName,
+        IndexName: this.productIdIndex,
+        KeyConditionExpression: "productId = :productId",
+        ExpressionAttributeValues: { ":productId": productId },
+      });
 
-    const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
-    return (res.Items ?? []).map((item) => this.itemToEntity(item as Record<string, unknown>));
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+      return (res.Items ?? []).map((item) =>
+        this.itemToEntity(item as Record<string, unknown>),
+      );
+    }
+
+    const items: Record<string, unknown>[] = [];
+    let ExclusiveStartKey: Record<string, unknown> | undefined;
+
+    do {
+      const cmd: ScanCommand = new ScanCommand({
+        TableName: this.tableName,
+        FilterExpression: "productId = :productId",
+        ExpressionAttributeValues: { ":productId": productId },
+        ExclusiveStartKey,
+      });
+
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+      if (res.Items) {
+        items.push(...(res.Items as Record<string, unknown>[]));
+      }
+      ExclusiveStartKey = res.LastEvaluatedKey;
+    } while (ExclusiveStartKey);
+
+    return items.map((item) => this.itemToEntity(item));
   }
 
   async findByUserId(userId: string): Promise<ReviewEntity[]> {
     const cmd: QueryCommand = new QueryCommand({
       TableName: this.tableName,
-      IndexName: this.userIdIndex,
       KeyConditionExpression: "userId = :userId",
       ExpressionAttributeValues: { ":userId": userId },
     });
 
     const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
-    return (res.Items ?? []).map((item) => this.itemToEntity(item as Record<string, unknown>));
+    return (res.Items ?? []).map((item) =>
+      this.itemToEntity(item as Record<string, unknown>),
+    );
   }
 
   async findByOrderId(orderId: string): Promise<ReviewEntity[]> {
     const cmd: QueryCommand = new QueryCommand({
       TableName: this.tableName,
-      IndexName: this.orderIdIndex,
       KeyConditionExpression: "orderId = :orderId",
       ExpressionAttributeValues: { ":orderId": orderId },
     });
 
     const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
-    return (res.Items ?? []).map((item) => this.itemToEntity(item as Record<string, unknown>));
+    return (res.Items ?? []).map((item) =>
+      this.itemToEntity(item as Record<string, unknown>),
+    );
   }
 
   async findAll(): Promise<ReviewEntity[]> {
@@ -134,11 +153,7 @@ export class ReviewRepository implements IReviewRepository {
   }
 
   async update(review: ReviewEntity): Promise<ReviewEntity> {
-    const item = {
-      ...review.toJSON(),
-      createdAt: review.createdAt.toISOString(),
-      updatedAt: review.updatedAt.toISOString(),
-    };
+    const item = this.prepareItem(review.toJSON());
 
     await dynamoDBDocumentClient.send(
       new PutCommand({

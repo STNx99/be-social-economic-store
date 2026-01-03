@@ -6,16 +6,20 @@ import {
   ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { ProductVariant } from "@/utils/schemas/productVariant";
+import { InventoryItem } from "@/utils/schemas/inventory";
 import { IProductVariantRepository } from "../../domain/repositories/IProductVariantRepository";
 import { dynamoDBDocumentClient } from "@/infrastructure/database";
 import { DynamoDBResult } from "@/infrastructure/database/dynamodb";
+import { BaseRepository } from "./BaseRepository";
 
-export class ProductVariantRepository implements IProductVariantRepository {
+export class ProductVariantRepository extends BaseRepository implements IProductVariantRepository {
   private tableName: string;
   private productIdIndex: string;
   private skuIndex: string;
+  private inventoryTableName: string;
 
   constructor() {
+    super();
     this.tableName =
       process.env.DYNAMODB_TABLE_PRODUCT_VARIANTS ?? "Variant";
     this.productIdIndex =
@@ -23,6 +27,7 @@ export class ProductVariantRepository implements IProductVariantRepository {
       "ProductIdIndex";
     this.skuIndex =
       process.env.DYNAMODB_PRODUCT_VARIANTS_SKU_INDEX ?? "SkuIndex";
+    this.inventoryTableName = process.env.DYNAMODB_TABLE_INVENTORY ?? "Inventory";
   }
 
   private itemToVariant(item: Record<string, unknown>): ProductVariant {
@@ -124,19 +129,7 @@ export class ProductVariantRepository implements IProductVariantRepository {
 
   async save(variant: ProductVariant): Promise<ProductVariant> {
     try {
-      const item = {
-        ...variant,
-        id: variant.id,
-        Id: variant.id, // Ensure both casings are provided for the Partition Key
-        createdAt:
-          variant.createdAt instanceof Date
-            ? variant.createdAt.toISOString()
-            : new Date(variant.createdAt).toISOString(),
-        updatedAt:
-          variant.updatedAt instanceof Date
-            ? variant.updatedAt.toISOString()
-            : new Date(variant.updatedAt).toISOString(),
-      };
+      const item = this.prepareItem(variant);
 
       console.log(`[ProductVariantRepository] Saving item to ${this.tableName}:`, JSON.stringify(item, null, 2));
 
@@ -149,8 +142,8 @@ export class ProductVariantRepository implements IProductVariantRepository {
 
       return {
         ...variant,
-        createdAt: new Date(item.createdAt),
-        updatedAt: new Date(item.updatedAt),
+        createdAt: new Date(item.createdAt as string),
+        updatedAt: new Date(item.updatedAt as string),
       };
     } catch (error: unknown) {
       const awsError = error as {
@@ -196,6 +189,76 @@ export class ProductVariantRepository implements IProductVariantRepository {
         return !!res.Attributes;
       }
       throw error;
+    }
+  }
+
+  async createVariantWithInventory(
+    variant: ProductVariant,
+    inventory: InventoryItem,
+  ): Promise<ProductVariant> {
+    const variantItem = this.prepareItem(variant);
+
+    const transactItems: any[] = [
+      {
+        Put: {
+          TableName: this.tableName,
+          Item: variantItem,
+        },
+      },
+      {
+        Put: {
+          TableName: this.inventoryTableName,
+          Item: this.prepareItem({
+            ...inventory,
+            lastUpdated: inventory.lastUpdated || new Date().toISOString(),
+          }),
+        },
+      },
+    ];
+
+    await this.executeTransactionWithRetry(transactItems);
+
+    return {
+      ...variant,
+      createdAt: new Date(variantItem.createdAt as string),
+      updatedAt: new Date(variantItem.updatedAt as string),
+    };
+  }
+
+  async deleteVariantWithInventory(variantId: string): Promise<boolean> {
+    try {
+      const inventoryRes = (await dynamoDBDocumentClient.send(
+        new ScanCommand({
+          TableName: this.inventoryTableName,
+          FilterExpression: "variantId = :variantId",
+          ExpressionAttributeValues: { ":variantId": variantId },
+          Limit: 1,
+        }),
+      )) as DynamoDBResult;
+
+      const transactItems: any[] = [
+        {
+          Delete: {
+            TableName: this.tableName,
+            Key: { id: variantId },
+          },
+        },
+      ];
+
+      if (inventoryRes.Items && inventoryRes.Items.length > 0) {
+        transactItems.push({
+          Delete: {
+            TableName: this.inventoryTableName,
+            Key: { id: inventoryRes.Items[0].id || inventoryRes.Items[0].Id },
+          },
+        });
+      }
+
+      await this.executeTransactionWithRetry(transactItems);
+      return true;
+    } catch (error) {
+      console.error("[ProductVariantRepository] Error deleting variant with inventory:", error);
+      return false;
     }
   }
 }

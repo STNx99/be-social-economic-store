@@ -10,18 +10,24 @@ import { IProductRepository } from "../../domain/repositories/IProductRepository
 import { dynamoDBDocumentClient } from "@/infrastructure/database";
 import { ProductStatus } from "@/utils/schemas/endpoints/products";
 import { DynamoDBResult } from "@/infrastructure/database/dynamodb";
+import { BaseRepository } from "./BaseRepository";
 
-export class ProductRepository implements IProductRepository {
+export class ProductRepository extends BaseRepository implements IProductRepository {
   private tableName: string;
   private categoryIndex?: string;
   private statusIndex?: string;
   private sellerIndex?: string;
+  private inventoryTableName: string;
+  private variantTableName: string;
 
   constructor() {
+    super();
     this.tableName = process.env.DYNAMODB_TABLE_PRODUCTS ?? process.env.DYNAMODB_TABLE_PRODUCT ?? "Product";
     this.categoryIndex = process.env.DYNAMODB_PRODUCTS_CATEGORY_INDEX;
     this.statusIndex = process.env.DYNAMODB_PRODUCTS_STATUS_INDEX;
     this.sellerIndex = process.env.DYNAMODB_PRODUCTS_SELLER_INDEX;
+    this.inventoryTableName = process.env.DYNAMODB_TABLE_INVENTORY ?? "Inventory";
+    this.variantTableName = process.env.DYNAMODB_TABLE_PRODUCT_VARIANTS ?? "Variant";
 
     if (!process.env.DYNAMODB_TABLE_PRODUCTS && !process.env.DYNAMODB_TABLE_PRODUCT) {
       console.warn(
@@ -315,25 +321,14 @@ export class ProductRepository implements IProductRepository {
 
   async save(product: Product): Promise<Product> {
     try {
-      const item = {
-        id: product.id,
-        Id: product.id,
-        sellerId: product.sellerId,
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        stock: product.stock,
-        images: product.images || [],
-        category: product.category,
-        status: product.status || "pending",
+      const item = this.prepareItem({
+        ...product,
         variants: (product.variants || []).map((v) => ({
           ...v,
           createdAt: v.createdAt.toISOString(),
           updatedAt: v.updatedAt.toISOString(),
         })),
-        createdAt: product.createdAt.toISOString(),
-        updatedAt: product.updatedAt.toISOString(),
-      };
+      });
 
       await dynamoDBDocumentClient.send(
         new PutCommand({
@@ -438,5 +433,113 @@ export class ProductRepository implements IProductRepository {
     }
 
     return allItems.map((it) => this.itemToProduct(it));
+  }
+
+  async createProductWithInventoryAndVariants(
+    product: Product,
+    inventory: any,
+    variants?: { variant: any; inventory: any }[],
+  ): Promise<Product> {
+    const productItem = this.prepareItem({
+      ...product,
+      variants: (variants || []).map((v) => this.prepareItem(v.variant)),
+    });
+
+    const transactItems: any[] = [
+      {
+        Put: {
+          TableName: this.tableName,
+          Item: productItem,
+        },
+      },
+      {
+        Put: {
+          TableName: this.inventoryTableName,
+          Item: this.prepareItem({
+            ...inventory,
+            lastUpdated: inventory.lastUpdated || new Date().toISOString(),
+          }),
+        },
+      },
+    ];
+
+    if (variants && variants.length > 0) {
+      variants.forEach(({ variant, inventory: variantInventory }) => {
+        transactItems.push({
+          Put: {
+            TableName: this.variantTableName,
+            Item: this.prepareItem(variant),
+          },
+        });
+
+        transactItems.push({
+          Put: {
+            TableName: this.inventoryTableName,
+            Item: this.prepareItem({
+              ...variantInventory,
+              lastUpdated: variantInventory.lastUpdated || new Date().toISOString(),
+            }),
+          },
+        });
+      });
+    }
+
+    await this.executeTransactionWithRetry(transactItems);
+
+    return {
+      ...product,
+      variants: variants?.map((v) => v.variant) || [],
+      createdAt: new Date(productItem.createdAt as string),
+      updatedAt: new Date(productItem.updatedAt as string),
+    };
+  }
+
+  async deleteProductWithResources(productId: string, variantIds: string[]): Promise<boolean> {
+    try {
+      // Find all inventory items associated with this product
+      const inventoryRes = (await dynamoDBDocumentClient.send(
+        new ScanCommand({
+          TableName: this.inventoryTableName,
+          FilterExpression: "productId = :productId",
+          ExpressionAttributeValues: { ":productId": productId },
+        }),
+      )) as DynamoDBResult;
+      const inventoryItems = (inventoryRes.Items as Record<string, any>[]) || [];
+
+      const transactItems: any[] = [
+        {
+          Delete: {
+            TableName: this.tableName,
+            Key: { id: productId },
+          },
+        },
+      ];
+
+      // Add variant deletions
+      variantIds.forEach((variantId) => {
+        transactItems.push({
+          Delete: {
+            TableName: this.variantTableName,
+            Key: { id: variantId },
+          },
+        });
+      });
+
+      // Add inventory deletions
+      inventoryItems.forEach((item) => {
+        transactItems.push({
+          Delete: {
+            TableName: this.inventoryTableName,
+            Key: { id: item.id || item.Id },
+          },
+        });
+      });
+
+      await this.executeTransactionWithRetry(transactItems);
+      return true;
+    } catch (error) {
+      console.error("[ProductRepository] Error deleting product with resources:", error);
+      return false;
+    }
   }
 }

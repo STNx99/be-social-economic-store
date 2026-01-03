@@ -4,22 +4,25 @@ import {
   DeleteCommand,
   QueryCommand,
   ScanCommand,
-  TransactWriteCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { Cart } from "@/utils/schemas/cart";
 import { ICartRepository } from "@/domain/repositories/ICartRepository";
 import { dynamoDBDocumentClient, DynamoDBResult } from "@/infrastructure/database/dynamodb";
+import { BaseRepository } from "./BaseRepository";
 
-export class CartRepository implements ICartRepository {
+export class CartRepository extends BaseRepository implements ICartRepository {
   private cartTableName: string;
   private productTableName: string;
+  private variantTableName: string;
   private inventoryTableName: string;
   private userIdIndex?: string;
 
   constructor() {
+    super()
     this.cartTableName = process.env.DYNAMODB_TABLE_CARTS ?? process.env.DYNAMODB_TABLE_CART ?? "Cart";
     this.productTableName = process.env.DYNAMODB_TABLE_PRODUCTS ?? process.env.DYNAMODB_TABLE_PRODUCT ?? "Product";
+    this.variantTableName = process.env.DYNAMODB_TABLE_PRODUCT_VARIANTS ?? "Variant";
     this.inventoryTableName = process.env.DYNAMODB_TABLE_INVENTORY ?? "Inventory";
     this.userIdIndex = process.env.DYNAMODB_CART_USER_ID_INDEX;
 
@@ -79,20 +82,14 @@ export class CartRepository implements ICartRepository {
   }
 
   async save(cart: Cart): Promise<Cart> {
-    const item = {
+    const item = this.prepareItem({
       id: cart.id,
       userId: cart.userId,
       items: cart.items,
       total: cart.total,
-      createdAt:
-        cart.createdAt instanceof Date
-          ? cart.createdAt.toISOString()
-          : new Date(cart.createdAt).toISOString(),
-      updatedAt:
-        cart.updatedAt instanceof Date
-          ? cart.updatedAt.toISOString()
-          : new Date(cart.updatedAt).toISOString(),
-    };
+      createdAt: cart.createdAt,
+      updatedAt: cart.updatedAt,
+    });
 
     await dynamoDBDocumentClient.send(
       new PutCommand({
@@ -109,25 +106,40 @@ export class CartRepository implements ICartRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = (await dynamoDBDocumentClient.send(
-      new DeleteCommand({
-        TableName: this.cartTableName,
-        Key: { id },
-        ReturnValues: "ALL_OLD",
-      }),
-    )) as DynamoDBResult;
+    try {
+      const res = (await dynamoDBDocumentClient.send(
+        new DeleteCommand({
+          TableName: this.cartTableName,
+          Key: { id },
+          ReturnValues: "ALL_OLD",
+        }),
+      )) as DynamoDBResult;
 
-    return !!res.Attributes;
+      return !!res.Attributes;
+    } catch (error: any) {
+      if (error.name === "ValidationException") {
+        const res = (await dynamoDBDocumentClient.send(
+          new DeleteCommand({
+            TableName: this.cartTableName,
+            Key: { Id: id },
+            ReturnValues: "ALL_OLD",
+          }),
+        )) as DynamoDBResult;
+
+        return !!res.Attributes;
+      }
+      throw error;
+    }
   }
 
-  async updateProductStock(productId: string, quantityToDeduct: number): Promise<void> {
-    const transactItems = [
+  async updateProductStock(productId: string, quantityToDeduct: number, variantId?: string): Promise<void> {
+    const transactItems: any[] = [
       {
         Update: {
           TableName: this.productTableName,
           Key: { id: productId },
           UpdateExpression: "SET stock = stock - :quantity, updatedAt = :updatedAt",
-          ConditionExpression: "stock >= :quantity AND attribute_exists(id)",
+          ConditionExpression: `stock >= :quantity AND (${this.getExistenceCondition()})`,
           ExpressionAttributeValues: {
             ":quantity": quantityToDeduct,
             ":updatedAt": new Date().toISOString(),
@@ -136,46 +148,56 @@ export class CartRepository implements ICartRepository {
       },
     ];
 
-    if (this.inventoryTableName && process.env.DYNAMODB_TABLE_INVENTORY) {
+    if (variantId) {
       transactItems.push({
         Update: {
-          TableName: this.inventoryTableName,
-          Key: { id: productId },
-          UpdateExpression: "SET availableQuantity = availableQuantity - :quantity, updatedAt = :updatedAt",
-          ConditionExpression: "availableQuantity >= :quantity AND attribute_exists(id)",
+          TableName: this.variantTableName,
+          Key: { id: variantId },
+          UpdateExpression: "SET stock = stock - :quantity, updatedAt = :updatedAt",
+          ConditionExpression: `stock >= :quantity AND (${this.getExistenceCondition()})`,
           ExpressionAttributeValues: {
             ":quantity": quantityToDeduct,
             ":updatedAt": new Date().toISOString(),
           },
         },
-      } as any);
+      });
     }
 
-    await dynamoDBDocumentClient.send(
-      new TransactWriteCommand({
-        TransactItems: transactItems,
-      }),
-    );
+    if (this.inventoryTableName && process.env.DYNAMODB_TABLE_INVENTORY) {
+      const inventoryKey = variantId ? { id: variantId } : { id: productId };
+      transactItems.push({
+        Update: {
+          TableName: this.inventoryTableName,
+          Key: inventoryKey,
+          UpdateExpression: "SET available = available - :quantity, stock = stock - :quantity, lastUpdated = :updatedAt",
+          ConditionExpression: `available >= :quantity AND (${this.getExistenceCondition()})`,
+          ExpressionAttributeValues: {
+            ":quantity": quantityToDeduct,
+            ":updatedAt": new Date().toISOString(),
+          },
+        },
+      });
+    }
+
+    await this.executeTransactionWithRetry(transactItems);
   }
 
   async addToCartWithInventoryUpdate(
     cart: Cart,
     productId: string,
     quantity: number,
+    variantId?: string,
   ): Promise<Cart> {
-    const cartItem = {
+    const cartItem = this.prepareItem({
       id: cart.id,
       userId: cart.userId,
       items: cart.items,
       total: cart.total,
-      createdAt:
-        cart.createdAt instanceof Date
-          ? cart.createdAt.toISOString()
-          : new Date(cart.createdAt).toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+      createdAt: cart.createdAt,
+      updatedAt: new Date(),
+    });
 
-    const transactItems = [
+    const transactItems: any[] = [
       {
         Put: {
           TableName: this.cartTableName,
@@ -187,7 +209,7 @@ export class CartRepository implements ICartRepository {
           TableName: this.productTableName,
           Key: { id: productId },
           UpdateExpression: "SET stock = stock - :quantity, updatedAt = :updatedAt",
-          ConditionExpression: "stock >= :quantity AND attribute_exists(id)",
+          ConditionExpression: `stock >= :quantity AND (${this.getExistenceCondition()})`,
           ExpressionAttributeValues: {
             ":quantity": quantity,
             ":updatedAt": new Date().toISOString(),
@@ -196,27 +218,39 @@ export class CartRepository implements ICartRepository {
       },
     ];
 
-    // Add inventory update if inventory table is configured
-    if (this.inventoryTableName && process.env.DYNAMODB_TABLE_INVENTORY) {
+    if (variantId) {
       transactItems.push({
         Update: {
-          TableName: this.inventoryTableName,
-          Key: { id: productId },
-          UpdateExpression: "SET availableQuantity = availableQuantity - :quantity, updatedAt = :updatedAt",
-          ConditionExpression: "availableQuantity >= :quantity AND attribute_exists(id)",
+          TableName: this.variantTableName,
+          Key: { id: variantId },
+          UpdateExpression: "SET stock = stock - :quantity, updatedAt = :updatedAt",
+          ConditionExpression: `stock >= :quantity AND (${this.getExistenceCondition()})`,
           ExpressionAttributeValues: {
             ":quantity": quantity,
             ":updatedAt": new Date().toISOString(),
           },
         },
-      } as any);
+      });
     }
 
-    await dynamoDBDocumentClient.send(
-      new TransactWriteCommand({
-        TransactItems: transactItems,
-      }),
-    );
+    // Add inventory update if inventory table is configured
+    if (this.inventoryTableName && process.env.DYNAMODB_TABLE_INVENTORY) {
+      const inventoryKey = variantId ? { id: variantId } : { id: productId };
+      transactItems.push({
+        Update: {
+          TableName: this.inventoryTableName,
+          Key: inventoryKey,
+          UpdateExpression: "SET available = available - :quantity, stock = stock - :quantity, lastUpdated = :updatedAt",
+          ConditionExpression: `available >= :quantity AND (${this.getExistenceCondition()})`,
+          ExpressionAttributeValues: {
+            ":quantity": quantity,
+            ":updatedAt": new Date().toISOString(),
+          },
+        },
+      });
+    }
+
+    await this.executeTransactionWithRetry(transactItems);
 
     return {
       ...cart,

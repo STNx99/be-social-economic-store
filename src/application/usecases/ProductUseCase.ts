@@ -97,34 +97,56 @@ export class ProductUseCase implements IProductUseCase {
         [],
       );
 
-      const savedProduct = await this.productRepository.save(product.toJSON());
-      await this.initializeMasterInventory(savedProduct);
+      const masterInventory = {
+        id: crypto.randomUUID(),
+        variantId: productId,
+        variantSku: `MASTER-${productId.slice(0, 8).toUpperCase()}`,
+        productId: productId,
+        productName: validatedInput.name,
+        category: validatedInput.category || "General",
+        stock: totalStock,
+        reserved: 0,
+        available: totalStock,
+        minStock: 0,
+        maxStock: 9999,
+        status: totalStock > 0 ? "in_stock" : "out_of_stock",
+        lastUpdated: new Date().toISOString(),
+      };
 
-      if (inputVariants.length > 0) {
-        const createdVariants = await this.processVariants(
+      const variantsWithInventory = inputVariants.map((v) => {
+        const variantId = crypto.randomUUID();
+        const variant = {
+          ...v,
+          id: variantId,
           productId,
-          inputVariants,
-          sellerId,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        const inventory = {
+          id: crypto.randomUUID(),
+          variantId: variantId,
+          variantSku: v.sku,
+          productId: productId,
+          productName: `${validatedInput.name} - ${v.name}`,
+          category: validatedInput.category || "General",
+          stock: v.stock,
+          reserved: 0,
+          available: v.stock,
+          minStock: 0,
+          maxStock: 9999,
+          status: v.stock > 0 ? "in_stock" : "out_of_stock",
+          lastUpdated: new Date().toISOString(),
+        };
+        return { variant, inventory };
+      });
+
+      const savedProduct =
+        await this.productRepository.createProductWithInventoryAndVariants(
+          product.toJSON(),
+          masterInventory,
+          variantsWithInventory,
         );
-
-        if ("error" in createdVariants) {
-          await this.rollbackProductCreation(
-            savedProduct.id,
-            createdVariants.rollbackItems,
-            sellerId,
-          );
-          return StatusBuilder.fail(
-            createdVariants.error,
-            createdVariants.details,
-          ) as CreateProductResponse;
-        }
-
-        const productWithVariants =
-          ProductEntity.fromValidatedData(savedProduct);
-        productWithVariants.variants = createdVariants;
-        await this.productRepository.save(productWithVariants.toJSON());
-        savedProduct.variants = createdVariants;
-      }
 
       return StatusBuilder.ok(savedProduct);
     } catch (error: unknown) {
@@ -240,8 +262,17 @@ export class ProductUseCase implements IProductUseCase {
         ]);
       }
 
-      await this.cleanupProductResources(validatedParams.id, userId);
-      const deleted = await this.productRepository.delete(validatedParams.id);
+      const variantsRes = await this.variantUseCase.listVariantsByProduct({
+        productId: validatedParams.id,
+      });
+      const variantIds = variantsRes.success && variantsRes.data 
+        ? variantsRes.data.map((v: any) => v.id) 
+        : [];
+
+      const deleted = await this.productRepository.deleteProductWithResources(
+        validatedParams.id,
+        variantIds,
+      );
 
       if (!deleted) return StatusBuilder.fail("Failed to delete product");
       return StatusBuilder.ok(undefined);
@@ -445,86 +476,9 @@ export class ProductUseCase implements IProductUseCase {
     });
   }
 
-  private async initializeMasterInventory(product: Product): Promise<void> {
-    await this.inventoryRepository.save({
-      id: crypto.randomUUID(),
-      variantId: product.id,
-      variantSku: `MASTER-${product.id.slice(0, 8).toUpperCase()}`,
-      productId: product.id,
-      productName: product.name,
-      category: product.category || "General",
-      stock: product.stock,
-      reserved: 0,
-      available: product.stock,
-      minStock: 0,
-      maxStock: 9999,
-      status: product.stock > 0 ? "in_stock" : "out_of_stock",
-      lastUpdated: new Date().toISOString(),
-    });
-  }
 
-  private async processVariants(
-    productId: string,
-    inputVariants: SanitizedProductInput["variants"],
-    sellerId: string,
-  ): Promise<
-    | ProductVariant[]
-    | {
-        error: string;
-        details?: ResponseDetails[];
-        rollbackItems: ProductVariant[];
-      }
-  > {
-    const createdVariants: ProductVariant[] = [];
-    for (const variantInput of inputVariants) {
-      const variantPayload: CreateProductVariantRequest = {
-        ...(variantInput as CreateProductVariantRequest),
-        productId,
-      };
-      const variantRes = await this.variantUseCase.createVariant(
-        variantPayload,
-        sellerId,
-      );
 
-      if (!variantRes.success) {
-        return {
-          error: `Failed to create variant "${variantInput.name}": ${variantRes.error}`,
-          details: variantRes.details,
-          rollbackItems: createdVariants,
-        };
-      }
-      if (variantRes.data) {
-        createdVariants.push(variantRes.data as ProductVariant);
-      }
-    }
-    return createdVariants;
-  }
 
-  private async rollbackProductCreation(
-    productId: string,
-    rollbackItems: ProductVariant[],
-    sellerId: string,
-  ) {
-    for (const variant of rollbackItems) {
-      await this.variantUseCase.deleteVariant({ id: variant.id }, sellerId);
-    }
-    await this.productRepository.delete(productId);
-    await this.inventoryRepository.deleteByVariantId(productId);
-  }
-
-  private async cleanupProductResources(
-    productId: string,
-    userId: string,
-  ): Promise<void> {
-    const variantsRes = await this.variantUseCase.listVariantsByProduct({
-      productId,
-    });
-    if (variantsRes.success && variantsRes.data) {
-      for (const variant of variantsRes.data) {
-        await this.inventoryRepository.deleteByVariantId(variant.id);
-      }
-    }
-  }
 
   private applyUpdates(
     product: ProductEntity,

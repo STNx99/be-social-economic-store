@@ -9,6 +9,7 @@
     "downlevelIteration": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
     "types": ["bun-types"],
     "baseUrl": ".",
     "paths": {
