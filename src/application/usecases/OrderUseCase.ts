@@ -35,8 +35,14 @@ export class OrderUseCase implements IOrderUseCase {
 
   async checkout(userId: string, input: CheckoutRequest): Promise<CheckoutResponse> {
     try {
-      const cart = await this.cartRepository.findByUserId(userId);
-      if (!cart || cart.items.length === 0) {
+      const cart = await this.cartRepository.findById(input.cartId);
+      if (!cart || cart.userId !== userId) {
+        return StatusBuilder.fail("Cart not found", [
+          { field: "cartId", message: "Cart does not exist or does not belong to user" },
+        ]);
+      }
+
+      if (cart.items.length === 0) {
         return StatusBuilder.fail("Cart is empty", [
           { field: "cart", message: "No items in cart to checkout" },
         ]);
@@ -71,6 +77,7 @@ export class OrderUseCase implements IOrderUseCase {
           crypto.randomUUID(),
           userId,
           sellerId,
+          input.cartId,
           items,
           totalAmount,
           input.shippingAddress,
@@ -120,6 +127,7 @@ export class OrderUseCase implements IOrderUseCase {
         crypto.randomUUID(),
         input.customerId,
         input.sellerId,
+        input.cartId,
         input.items,
         input.totalAmount,
         input.shippingAddress,

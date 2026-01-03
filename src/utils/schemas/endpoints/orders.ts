@@ -29,6 +29,7 @@ export const UpdateOrderStatusResponseSchema = createEndpointResponseSchema(Orde
 export const ListOrdersResponseSchema = createEndpointResponseSchema(z.array(OrderSchema));
 
 export const CheckoutRequestSchema = z.object({
+  cartId: IDSchema,
   shippingAddress: z.string().min(1),
   paymentMethod: PaymentMethodSchema,
   notes: z.string().max(500).optional(),

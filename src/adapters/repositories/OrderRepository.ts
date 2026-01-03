@@ -38,6 +38,7 @@ export class OrderRepository extends BaseRepository implements IOrderRepository 
       id: item.id as string,
       customerId: item.customerId as string,
       sellerId: item.sellerId as string,
+      cartId: item.cartId as string,
       items: item.items as OrderItem[],
       totalAmount: item.totalAmount as number,
       status: item.status as OrderStatus,

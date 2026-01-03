@@ -13,6 +13,7 @@ export class OrderEntity implements Order {
   private idValue: string;
   private customerIdValue: string;
   private sellerIdValue: string;
+  private cartIdValue: string;
   private itemsValue: OrderItem[];
   private totalAmountValue: number;
   private statusValue: OrderStatus;
@@ -26,6 +27,7 @@ export class OrderEntity implements Order {
     id: string,
     customerId: string,
     sellerId: string,
+    cartId: string,
     items: OrderItem[],
     totalAmount: number,
     shippingAddress: string,
@@ -38,6 +40,7 @@ export class OrderEntity implements Order {
     this.idValue = id;
     this.customerIdValue = customerId;
     this.sellerIdValue = sellerId;
+    this.cartIdValue = cartId;
     this.itemsValue = items;
     this.totalAmountValue = totalAmount;
     this.shippingAddressValue = shippingAddress;
@@ -58,6 +61,10 @@ export class OrderEntity implements Order {
 
   get sellerId(): string {
     return this.sellerIdValue;
+  }
+
+  get cartId(): string {
+    return this.cartIdValue;
   }
 
   get items(): OrderItem[] {
@@ -133,6 +140,7 @@ export class OrderEntity implements Order {
       id: this.idValue,
       customerId: this.customerIdValue,
       sellerId: this.sellerIdValue,
+      cartId: this.cartIdValue,
       items: this.itemsValue,
       totalAmount: this.totalAmountValue,
       status: this.statusValue,
@@ -149,6 +157,7 @@ export class OrderEntity implements Order {
       data.id,
       data.customerId,
       data.sellerId,
+      data.cartId,
       data.items,
       data.totalAmount,
       data.shippingAddress,
