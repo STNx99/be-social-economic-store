@@ -7,11 +7,13 @@ export class WsController {
   constructor(private wsUseCase: IWsUseCase) {}
 
   handleConnection(ws: WSContext, userId: string): string {
+    console.log("Handling new connection", userId)
     return this.wsUseCase.addClient(ws, userId);
   }
 
   handleMessage(clientId: string, event: MessageEvent<WSMessageReceive>) {
     const userId = this.wsUseCase.getUserIdByClientId(clientId);
+    console.log("Handling message", userId)
     if (!userId) return;
 
     try {

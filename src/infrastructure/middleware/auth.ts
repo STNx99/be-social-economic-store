@@ -23,7 +23,15 @@ export function requireAuth() {
   return async (c: Context, next: Next) => {
     try {
       const header = c.req.header("Authorization") || c.req.header("Sec-WebSocket-Protocol");
-      const token = getTokenFromAuthHeader(header);
+      let token = getTokenFromAuthHeader(header);
+
+      if (!token) {
+        const qp = (c.req.query("token") || c.req.query("access_token")) as string | undefined;
+        if (qp) {
+          token = getTokenFromAuthHeader(qp);
+        }
+      }
+
       if (!token) {
         return c.json(StatusBuilder.fail("Unauthorized"), 401);
       }
