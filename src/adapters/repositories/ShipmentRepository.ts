@@ -53,7 +53,10 @@ export class ShipmentRepository extends BaseRepository implements IShipmentRepos
       if (!res.Item) return null;
       return this.itemToShipment(res.Item);
     } catch (error: any) {
-      if (error.name === "ValidationException") {
+      if (
+        error.name === "ValidationException" ||
+        error.message?.includes("The provided key element does not match the schema")
+      ) {
         const cmd = new GetCommand({
           TableName: this.tableName,
           Key: { Id: id },
@@ -138,7 +141,10 @@ export class ShipmentRepository extends BaseRepository implements IShipmentRepos
 
       return !!res.Attributes;
     } catch (error: any) {
-      if (error.name === "ValidationException") {
+      if (
+        error.name === "ValidationException" ||
+        error.message?.includes("The provided key element does not match the schema")
+      ) {
         const res = (await dynamoDBDocumentClient.send(
           new DeleteCommand({
             TableName: this.tableName,

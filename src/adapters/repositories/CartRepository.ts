@@ -71,14 +71,28 @@ export class CartRepository extends BaseRepository implements ICartRepository {
   }
 
   async findById(id: string): Promise<Cart | null> {
-    const cmd: GetCommand = new GetCommand({
-      TableName: this.cartTableName,
-      Key: { id },
-    });
+    try {
+      const cmd: GetCommand = new GetCommand({
+        TableName: this.cartTableName,
+        Key: { id },
+      });
 
-    const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
-    if (!res.Item) return null;
-    return this.itemToCart(res.Item);
+      const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+      if (!res.Item) return null;
+      return this.itemToCart(res.Item);
+    } catch (error: any) {
+      if (error.name === "ValidationException") {
+        const cmd: GetCommand = new GetCommand({
+          TableName: this.cartTableName,
+          Key: { Id: id },
+        });
+
+        const res = (await dynamoDBDocumentClient.send(cmd)) as DynamoDBResult;
+        if (!res.Item) return null;
+        return this.itemToCart(res.Item);
+      }
+      throw error;
+    }
   }
 
   async save(cart: Cart): Promise<Cart> {

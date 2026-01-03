@@ -35,7 +35,7 @@ export class OrderRepository extends BaseRepository implements IOrderRepository 
 
   private itemToOrder(item: Record<string, unknown>): Order {
     return {
-      id: item.id as string,
+      id: (item.id || item.Id) as string,
       customerId: item.customerId as string,
       sellerId: item.sellerId as string,
       cartId: item.cartId as string,
@@ -55,14 +55,28 @@ export class OrderRepository extends BaseRepository implements IOrderRepository 
   }
 
   async findById(id: string): Promise<Order | null> {
-    const cmd = new GetCommand({
-      TableName: this.tableName,
-      Key: { id },
-    });
+    try {
+      const cmd = new GetCommand({
+        TableName: this.tableName,
+        Key: { id },
+      });
 
-    const res = await dynamoDBDocumentClient.send(cmd);
-    if (!res.Item) return null;
-    return this.itemToOrder(res.Item);
+      const res = await dynamoDBDocumentClient.send(cmd);
+      if (!res.Item) return null;
+      return this.itemToOrder(res.Item);
+    } catch (error: any) {
+      if (error.name === "ValidationException") {
+        const cmd = new GetCommand({
+          TableName: this.tableName,
+          Key: { Id: id },
+        });
+
+        const res = await dynamoDBDocumentClient.send(cmd);
+        if (!res.Item) return null;
+        return this.itemToOrder(res.Item);
+      }
+      throw error;
+    }
   }
 
   async findAll(): Promise<Order[]> {
@@ -163,15 +177,30 @@ export class OrderRepository extends BaseRepository implements IOrderRepository 
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = (await dynamoDBDocumentClient.send(
-      new DeleteCommand({
-        TableName: this.tableName,
-        Key: { id },
-        ReturnValues: "ALL_OLD",
-      }),
-    )) as DynamoDBResult;
+    try {
+      const res = (await dynamoDBDocumentClient.send(
+        new DeleteCommand({
+          TableName: this.tableName,
+          Key: { id },
+          ReturnValues: "ALL_OLD",
+        }),
+      )) as DynamoDBResult;
 
-    return !!res.Attributes;
+      return !!res.Attributes;
+    } catch (error: any) {
+      if (error.name === "ValidationException") {
+        const res = (await dynamoDBDocumentClient.send(
+          new DeleteCommand({
+            TableName: this.tableName,
+            Key: { Id: id },
+            ReturnValues: "ALL_OLD",
+          }),
+        )) as DynamoDBResult;
+
+        return !!res.Attributes;
+      }
+      throw error;
+    }
   }
 
   async createOrdersAndClearCart(orders: Order[], cartId: string): Promise<Order[]> {
@@ -187,6 +216,7 @@ export class OrderRepository extends BaseRepository implements IOrderRepository 
         TableName: this.cartTableName,
         Key: { id: cartId },
         UpdateExpression: "SET items = :emptyList, total = :zero, updatedAt = :updatedAt",
+        ConditionExpression: "attribute_exists(id) OR attribute_exists(Id)",
         ExpressionAttributeValues: {
           ":emptyList": [],
           ":zero": 0,

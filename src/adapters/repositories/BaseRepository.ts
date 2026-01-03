@@ -21,50 +21,51 @@ export abstract class BaseRepository {
         new TransactWriteCommand({ TransactItems: transactItems })
       );
     } catch (error: any) {
-      if (error.name === "TransactionCanceledException") {
-        const reasons = error.CancellationReasons || [];
+      const reasons = error.CancellationReasons || [];
+      const isValidationException = error.name === "ValidationException" || 
+                                   error.message?.includes("The provided key element does not match the schema");
+      
+      const hasKeyErrorInReasons = reasons.some(
+        (r: any) => 
+          r.Code === "ValidationError" || 
+          (r.Message && r.Message.includes("The provided key element does not match the schema"))
+      );
+
+      if (isValidationException || hasKeyErrorInReasons) {
+        console.warn(`[${this.constructor.name}] Transaction key mismatch detected. Attempting granular fallback...`);
         
-        // Check if any failure is due to a key schema mismatch (ValidationError)
-        const hasKeyError = reasons.some(
-          (r: any) => 
-            r.Code === "ValidationError" || 
-            (r.Message && r.Message.includes("The provided key element does not match the schema"))
-        );
-
-        if (hasKeyError) {
-          console.warn(`[${this.constructor.name}] Transaction key mismatch detected. Attempting granular fallback...`);
+        const fallbackItems = transactItems.map((item, index) => {
+          const reason = reasons[index];
           
-          const fallbackItems = transactItems.map((item, index) => {
-            const reason = reasons[index];
+          if (isValidationException || reason?.Code === "ValidationError") {
+            const opType = Object.keys(item)[0] as keyof typeof item;
+            const op = (item as any)[opType];
             
-            if (reason?.Code === "ValidationError") {
-              const opType = Object.keys(item)[0] as keyof typeof item;
-              const op = (item as any)[opType];
-              
-              if (op && op.Key) {
-                const newKey = this.swapKeyCasing(op.Key);
-                return {
-                  [opType]: {
-                    ...op,
-                    Key: newKey
-                  }
-                };
-              }
+            if (op && op.Key) {
+              const newKey = this.swapKeyCasing(op.Key);
+              return {
+                [opType]: {
+                  ...op,
+                  Key: newKey
+                }
+              };
             }
-            return item;
-          });
-
-          try {
-            await dynamoDBDocumentClient.send(
-              new TransactWriteCommand({ TransactItems: fallbackItems })
-            );
-            return; // Success on retry
-          } catch (retryError: any) {
-            console.error(`[${this.constructor.name}] Fallback transaction failed:`, retryError);
-            throw retryError;
           }
-        }
+          return item;
+        });
 
+        try {
+          await dynamoDBDocumentClient.send(
+            new TransactWriteCommand({ TransactItems: fallbackItems })
+          );
+          return; // Success on retry
+        } catch (retryError: any) {
+          console.error(`[${this.constructor.name}] Fallback transaction failed:`, retryError);
+          throw retryError;
+        }
+      }
+
+      if (error.name === "TransactionCanceledException") {
         console.error(
           `[${this.constructor.name}] Transaction cancelled for reasons other than key mismatch:`,
           JSON.stringify(reasons, null, 2)

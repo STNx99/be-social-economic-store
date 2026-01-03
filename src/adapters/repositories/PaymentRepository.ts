@@ -54,7 +54,10 @@ export class PaymentRepository extends BaseRepository implements IPaymentReposit
       if (!res.Item) return null;
       return this.itemToPayment(res.Item);
     } catch (error: any) {
-      if (error.name === "ValidationException") {
+      if (
+        error.name === "ValidationException" ||
+        error.message?.includes("The provided key element does not match the schema")
+      ) {
         const cmd = new GetCommand({
           TableName: this.tableName,
           Key: { Id: id },
