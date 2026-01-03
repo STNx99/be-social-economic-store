@@ -1,5 +1,6 @@
 import { UserEntity, DomainValidationError } from "@/domain/entities/User";
 import { IUserRepository } from "@/domain/repositories/IUserRepository";
+import { CartEntity } from "@/domain/entities/Cart";
 import { validateData, ValidationError, StatusBuilder } from "@/utils";
 import { 
   AuthRegisterRequestSchema, 
@@ -15,7 +16,9 @@ import bcrypt from "bcryptjs";
 import { generateAccessToken } from "@/utils/auth";
 
 export class AuthUseCase {
-  constructor(private userRepository: IUserRepository) {}
+  constructor(
+    private userRepository: IUserRepository,
+  ) {}
 
   async register(request: AuthRegisterRequest): Promise<AuthRegisterResponse> {
     try {
@@ -63,17 +66,23 @@ export class AuthUseCase {
         validatedInput.role,
       );
 
-      // 6. Lưu vào repository (memory)
-      const savedUser = await this.userRepository.save(user);
+      // Create empty cart for new user
+      const cart = new CartEntity(
+        crypto.randomUUID(),
+        user.id,
+        [],
+        0,
+      );
 
-      // 7. Return response (password is not returned)
+      await this.userRepository.createUserWithCart(user.toJSON(), cart.toJSON());
+
       return StatusBuilder.ok({
-        id: savedUser.id,
-        name: savedUser.name,
-        email: savedUser.email,
-        role: savedUser.role,
-        createdAt: savedUser.createdAt,
-        updatedAt: savedUser.updatedAt,
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       });
     } catch (error) {
       if (error instanceof DomainValidationError) {
@@ -100,7 +109,7 @@ export class AuthUseCase {
       }
 
       const user = await this.userRepository.findByEmail(
-        validatedInput.email,
+        validatedInput.email.trim().toLowerCase(),
       );
 
       if (!user) {

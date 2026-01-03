@@ -5,7 +5,7 @@ import {
   QueryCommand,
   ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
-import { User, UserRole } from "@/utils";
+import { User, UserRole, Cart } from "@/utils";
 import { IUserRepository } from "@/domain/repositories/IUserRepository";
 import { dynamoDBDocumentClient, DynamoDBResult } from "@/infrastructure/database/dynamodb";
 import { BaseRepository } from "./BaseRepository";
@@ -149,5 +149,33 @@ export class UserRepository extends BaseRepository implements IUserRepository {
     } while (ExclusiveStartKey);
 
     return items.map((it) => this.itemToUser(it));
+  }
+
+  async createUserWithCart(user: User, cart: Cart): Promise<void> {
+    const userItem = this.prepareItem(user);
+    const cartTableName =
+      process.env.DYNAMODB_TABLE_CARTS ??
+      process.env.DYNAMODB_TABLE_CART ??
+      "Cart";
+    const cartItem = this.prepareItem(cart);
+
+    const transactItems = [
+      {
+        Put: {
+          TableName: this.tableName,
+          Item: userItem,
+          ConditionExpression:
+            "attribute_not_exists(id) AND attribute_not_exists(Id)",
+        },
+      },
+      {
+        Put: {
+          TableName: cartTableName,
+          Item: cartItem,
+        },
+      },
+    ];
+
+    await this.executeTransactionWithRetry(transactItems);
   }
 }

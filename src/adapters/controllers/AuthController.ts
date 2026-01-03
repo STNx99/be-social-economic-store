@@ -35,6 +35,7 @@ export class AuthController {
       if (response.success) {
         return c.json(response, 200);
       } else {
+        console.log(response)
         return c.json(response, 401);
       }
     } catch (error) {

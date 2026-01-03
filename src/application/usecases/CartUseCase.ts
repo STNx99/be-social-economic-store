@@ -151,6 +151,7 @@ export class CartUseCase implements ICartUseCase {
       }
 
       const savedCart = await this.cartRepository.findByUserId(userId);
+      console.log(savedCart)
       return StatusBuilder.ok(savedCart!);
     } catch (error: unknown) {
       const err = error as { name?: string; message?: string };
