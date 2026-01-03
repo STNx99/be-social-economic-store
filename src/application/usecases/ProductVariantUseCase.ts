@@ -62,7 +62,7 @@ export class ProductVariantUseCase implements IProductVariantUseCase {
       };
 
       const inventory = {
-        id: crypto.randomUUID(),
+        id: variant.id,
         variantId: variant.id,
         variantSku: variant.sku,
         productId: variant.productId,

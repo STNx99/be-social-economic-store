@@ -28,8 +28,6 @@ import {
   UpdateProductInput,
   UpdateProductSchema,
 } from "@/utils/schemas/product";
-import { ProductVariant } from "@/utils/schemas/productVariant";
-import { CreateProductVariantRequest } from "@/utils/schemas/endpoints/productVariants";
 import { IProductRepository } from "@/domain/repositories/IProductRepository";
 import { IInventoryRepository } from "@/domain/repositories/IInventoryRepository";
 import { ICategoryRepository } from "@/domain/repositories/ICategoryRepository";
@@ -98,7 +96,7 @@ export class ProductUseCase implements IProductUseCase {
       );
 
       const masterInventory = {
-        id: crypto.randomUUID(),
+        id: productId,
         variantId: productId,
         variantSku: `MASTER-${productId.slice(0, 8).toUpperCase()}`,
         productId: productId,
@@ -124,7 +122,7 @@ export class ProductUseCase implements IProductUseCase {
           updatedAt: new Date(),
         };
         const inventory = {
-          id: crypto.randomUUID(),
+          id: variantId,
           variantId: variantId,
           variantSku: v.sku,
           productId: productId,
