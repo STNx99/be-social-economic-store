@@ -215,8 +215,12 @@ export class OrderRepository extends BaseRepository implements IOrderRepository 
       Update: {
         TableName: this.cartTableName,
         Key: { id: cartId },
-        UpdateExpression: "SET items = :emptyList, total = :zero, updatedAt = :updatedAt",
+        UpdateExpression: "SET #items = :emptyList, #total = :zero, updatedAt = :updatedAt",
         ConditionExpression: "attribute_exists(id) OR attribute_exists(Id)",
+        ExpressionAttributeNames: {
+          "#items": "items",
+          "#total": "total",
+        },
         ExpressionAttributeValues: {
           ":emptyList": [],
           ":zero": 0,
