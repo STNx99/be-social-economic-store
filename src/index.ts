@@ -13,6 +13,7 @@ import { setupUploadRoutes } from "./infrastructure/routes/uploadRoutes";
 import { setUpWebsocketRoute } from "./infrastructure/routes/wsRoutes";
 import { setupInventoryRoutes } from "./infrastructure/routes/inventoryRoutes";
 import { setupReviewRoutes } from "./infrastructure/routes/reviewRoutes";
+import { setupAIRoutes } from "./infrastructure/routes/aiRoutes";
 import { websocket } from "hono/bun";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -54,6 +55,7 @@ setupUploadRoutes(app);
 setUpWebsocketRoute(app);
 setupInventoryRoutes(app);
 setupReviewRoutes(app);
+setupAIRoutes(app);
 
 // 404 handler
 app.notFound((c) => {

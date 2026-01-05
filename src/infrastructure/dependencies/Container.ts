@@ -245,4 +245,8 @@ export class Container {
   getUploadController(): UploadController {
     return this.uploadController;
   }
+
+  getProductUseCase(): IProductUseCase {
+    return this.productUseCase;
+  }
 }
